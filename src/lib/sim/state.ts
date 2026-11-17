@@ -5,6 +5,7 @@
  */
 import type { CaseAed, Rhythm, SimCase } from "@/lib/cases/types";
 import type { TimelineEvent } from "@/lib/sim/monitor";
+import { initialAls, type AlsState } from "@/lib/sim/als";
 
 export type Mode = "coached" | "exam";
 export type CprStatus = "not_started" | "in_progress" | "paused" | "stopped";
@@ -53,10 +54,13 @@ export interface SimState {
   log: TurnLog[];
   /** Monitor timeline (CPR start, pads, analyses, shocks, ROSC) – derived deterministically by the server. */
   timeline?: TimelineEvent[];
+  /** ALS cases: manual defibrillator, drugs, airway (deterministic engine in als.ts). */
+  als?: AlsState;
 }
 
-export function initialState(c: Pick<SimCase, "id">, mode: Mode): SimState {
+export function initialState(c: Pick<SimCase, "id"> & Partial<Pick<SimCase, "als">>, mode: Mode): SimState {
   return {
+    ...(c.als ? { als: initialAls() } : {}),
     caseId: c.id,
     mode,
     turn: 0,

@@ -16,6 +16,9 @@ const DOT: Record<TimelineKind, string> = {
   analysis: "bg-violet-500",
   shock: "bg-resus",
   rosc: "bg-emerald-600",
+  drug: "bg-knowledge",
+  access: "bg-slate-400",
+  airway: "bg-cyan-500",
 };
 
 function Timeline({ state }: { state: SimState }) {
@@ -196,7 +199,7 @@ export default function Debrief({ pc, state, onRetry }: { pc: PublicCase; state:
         </div>
       </div>
 
-      {pc.monitor && <Timeline state={state} />}
+      {(pc.monitor || pc.als) && <Timeline state={state} />}
 
       <div className="card">
         <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Key messages from the guideline</h3>

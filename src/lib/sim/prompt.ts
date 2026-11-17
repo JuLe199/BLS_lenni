@@ -53,7 +53,9 @@ export interface ModelTurn {
   completedActions: string[];
   pitfalls: string[];
   revealedFacts: string[];
-  aedSteps: string[];
+  aedSteps?: string[];
+  /** ALS cases only. */
+  alsActions?: string[];
   cpr: SimState["cpr"];
   elapsedSeconds: number;
   coach: { text: string; trigger: "pitfall" | "hint" | "question"; citations: { passageId: string; quote: string }[] } | null;

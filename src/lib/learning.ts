@@ -3,13 +3,17 @@
  */
 import type { AedProgress, StoredResult } from "@/lib/progress";
 
-export type CompetencyId = "recognition" | "alerting" | "cpr" | "aed";
+export type CompetencyId = "recognition" | "alerting" | "cpr" | "aed" | "als_defib" | "als_drugs" | "als_airway" | "als_causes";
 
-export const COMPETENCIES: { id: CompetencyId; label: string; description: string }[] = [
-  { id: "recognition", label: "Recognise cardiac arrest", description: "Safety, response, breathing, agonal gasps, signs of recovery" },
-  { id: "alerting", label: "Alert & organise help", description: "Emergency call, speaker phone, team alert, dispatcher tasks" },
-  { id: "cpr", label: "High-quality CPR", description: "Start without delay, depth/rate/recoil, ventilation, minimal pauses" },
-  { id: "aed", label: "AED & defibrillation", description: "Fetch AED, pads during CPR, stand clear, shock, restart CPR" },
+export const COMPETENCIES: { id: CompetencyId; module: "bls" | "als"; label: string; description: string }[] = [
+  { id: "recognition", module: "bls", label: "Recognise cardiac arrest", description: "Safety, response, breathing, agonal gasps, signs of recovery" },
+  { id: "alerting", module: "bls", label: "Alert & organise help", description: "Emergency call, speaker phone, team alert, dispatcher tasks" },
+  { id: "cpr", module: "bls", label: "High-quality CPR", description: "Start without delay, depth/rate/recoil, ventilation, minimal pauses" },
+  { id: "aed", module: "bls", label: "AED & defibrillation", description: "Fetch AED, pads during CPR, stand clear, shock, restart CPR" },
+  { id: "als_defib", module: "als", label: "Rhythm & manual defibrillation", description: "Read the rhythm, shock decisions, safe short pauses, energy, vector change" },
+  { id: "als_drugs", module: "als", label: "Drugs & vascular access", description: "IV/IO, adrenaline and amiodarone timing, fluids" },
+  { id: "als_airway", module: "als", label: "Airway & capnography", description: "Oxygen, stepwise airway, ventilation, waveform capnography" },
+  { id: "als_causes", module: "als", label: "Reversible causes & post-ROSC", description: "4 Hs & 4 Ts, treatment of the cause, immediate post-ROSC care" },
 ];
 
 /** Every checklist item id belongs to exactly one competency (checked by verify:content). */
@@ -59,6 +63,26 @@ export const COMPETENCY_OF: Record<string, CompetencyId> = {
   guide_to_aed: "aed",
   aed_instructions: "aed",
   aed_early: "aed",
+
+  // ALS
+  confirm_arrest: "recognition",
+  resume_immediately: "cpr",
+  rhythm_decisions: "als_defib",
+  safe_short_shock: "als_defib",
+  shock_energy: "als_defib",
+  vector_change: "als_defib",
+  vascular_access: "als_drugs",
+  io_after_failed_iv: "als_drugs",
+  adrenaline_after_third_shock: "als_drugs",
+  adrenaline_early: "als_drugs",
+  amiodarone_after_third_shock: "als_drugs",
+  amiodarone_after_fifth_shock: "als_drugs",
+  fluids_for_hypovolaemia: "als_drugs",
+  airway_oxygen: "als_airway",
+  capnography: "als_airway",
+  reversible_causes: "als_causes",
+  post_rosc: "als_causes",
+  consider_options: "als_causes",
 };
 
 export interface CompetencyScore {

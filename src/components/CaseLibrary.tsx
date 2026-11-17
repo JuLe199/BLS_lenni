@@ -5,7 +5,8 @@ import { ArrowRight, Building2, CheckCircle2, Clock, Hospital, PhoneCall, Trees 
 import type { PublicCase } from "@/lib/cases/public";
 import { AUDIENCE_LABEL, SETTING_LABEL, type Audience, type Setting } from "@/lib/cases/types";
 import { bestResult, setAudience, useAudience, useResults } from "@/lib/progress";
-import { BLS_GUIDELINE } from "@/lib/guideline";
+import { GUIDELINES } from "@/lib/guideline";
+import { BookOpen } from "lucide-react";
 
 const SETTING_ICON: Record<Setting, typeof Hospital> = {
   "out-of-hospital": Trees,
@@ -38,14 +39,14 @@ export function CaseCard({ c }: { c: PublicCase }) {
   const best = bestResult(results, c.id);
   const Icon = SETTING_ICON[c.setting];
   return (
-    <Link href={`/bls/${c.id}`} className="card group flex flex-col !p-0">
+    <Link href={`/${c.module}/${c.id}`} className="card group flex flex-col !p-0">
       <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 pb-3 pt-5 dark:border-slate-700/60">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-resus-light text-resus dark:bg-resus/15">
             <Icon className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Case {c.number} · {SETTING_LABEL[c.setting]}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{c.module.toUpperCase()} case {c.number} · {SETTING_LABEL[c.setting]}</p>
             <h3 className="font-semibold text-slate-900 dark:text-white">{c.title}</h3>
           </div>
         </div>
@@ -74,18 +75,27 @@ export function CaseCard({ c }: { c: PublicCase }) {
   );
 }
 
-export default function CaseLibrary({ cases }: { cases: PublicCase[] }) {
+const MODULE_TEXT = {
+  bls: { title: "Adult Basic Life Support – cases", learn: "/learn/bls" },
+  als: { title: "Adult Advanced Life Support – cases", learn: "/learn/als" },
+};
+
+export default function CaseLibrary({ cases, module = "bls" }: { cases: PublicCase[]; module?: "bls" | "als" }) {
   const audience = useAudience();
+  const G = GUIDELINES[module];
   const shown = audience === "all" ? cases : cases.filter((c) => c.audiences.includes(audience));
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-10">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-resus"><Building2 className="h-3.5 w-3.5" /> Module · BLS</p>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">Adult Basic Life Support – cases</h1>
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-resus"><Building2 className="h-3.5 w-3.5" /> Module · {module.toUpperCase()}</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">{MODULE_TEXT[module].title}</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-            Based exclusively on the {BLS_GUIDELINE.source.title} ({BLS_GUIDELINE.source.journal}).
+            Based exclusively on the {G.source.title} ({G.source.journal}){module === "als" && " – building on the ERC 2025 Adult BLS guideline"}.
           </p>
+          <Link href={MODULE_TEXT[module].learn} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-knowledge-light px-3 py-1.5 text-xs font-semibold text-knowledge hover:bg-knowledge/15 dark:bg-knowledge/15">
+            <BookOpen className="h-3.5 w-3.5" /> First learn the content – {module.toUpperCase()} knowledge section <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
         <AudiencePicker />
       </div>

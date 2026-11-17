@@ -91,7 +91,7 @@ export function monitorView(state: Pick<SimState, "aed" | "cpr" | "facts" | "end
 
 /* ---------------------------------------------------------------- timeline */
 
-export type TimelineKind = "cpr_start" | "cpr_pause" | "pads" | "analysis" | "shock" | "rosc";
+export type TimelineKind = "cpr_start" | "cpr_pause" | "pads" | "analysis" | "shock" | "rosc" | "drug" | "access" | "airway";
 export interface TimelineEvent {
   /** Scenario time (seconds, approximate – end of the turn in which it happened). */
   t: number;
