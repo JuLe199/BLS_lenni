@@ -1,0 +1,15 @@
+# Netlify-Konfiguration für die Next.js-App (App Router + API-Routen).
+# WICHTIG: Diese App kann NICHT per Drag-and-drop hochgeladen werden – sie muss
+# von Netlify gebaut werden (Git-Deploy oder `netlify deploy --build`), damit die
+# serverseitigen API-Routen (/api/case/turn) laufen.
+
+[build]
+  command = "next build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Offizielle Next.js-Runtime (SSR + API-Routen als Functions).
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
