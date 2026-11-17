@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookOpenText, CheckCircle2, HeartPulse, Lock, ShieldCheck, Sparkles, Target, Trophy } from "lucide-react";
+import { ArrowRight, BookOpenText, CheckCircle2, HeartPulse, Lock, ShieldCheck, Sparkles, Target, Trophy, Zap } from "lucide-react";
 import type { PublicCase } from "@/lib/cases/public";
 import { MODULES, APP_TAGLINE } from "@/lib/brand";
 import { bestResult, useAudience, useResults } from "@/lib/progress";
 import { AudiencePicker, CaseCard } from "@/components/CaseLibrary";
 import { BLS_GUIDELINE } from "@/lib/guideline";
+import { LearningLevelCard } from "@/components/LearningProgress";
 
 export default function Dashboard({ cases }: { cases: PublicCase[] }) {
   const results = useResults();
@@ -60,6 +61,20 @@ export default function Dashboard({ cases }: { cases: PublicCase[] }) {
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">I am training as</p>
           <AudiencePicker />
         </div>
+      </section>
+
+      {/* Learning progress + AED module */}
+      <section className="mt-4 grid gap-4 md:grid-cols-2">
+        <LearningLevelCard cases={cases} />
+        <Link href="/aed" className="card group flex items-center gap-4 !p-5">
+          <span className="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 text-white"><Zap className="h-8 w-8" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Knowledge module</span>
+            <span className="mt-0.5 block text-lg font-bold text-slate-900 dark:text-white">Using an AED</span>
+            <span className="block text-xs text-slate-500 dark:text-slate-400">Lessons, pad placement, step-by-step drill and quiz</span>
+          </span>
+          <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-0.5" />
+        </Link>
       </section>
 
       {/* Modules */}

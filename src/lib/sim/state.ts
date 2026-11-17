@@ -4,6 +4,7 @@
  * it only reports what the learner did (aedSteps); this module turns that into device behaviour.
  */
 import type { CaseAed, Rhythm, SimCase } from "@/lib/cases/types";
+import type { TimelineEvent } from "@/lib/sim/monitor";
 
 export type Mode = "coached" | "exam";
 export type CprStatus = "not_started" | "in_progress" | "paused" | "stopped";
@@ -50,6 +51,8 @@ export interface SimState {
   ended: boolean;
   endReason: EndReason | null;
   log: TurnLog[];
+  /** Monitor timeline (CPR start, pads, analyses, shocks, ROSC) – derived deterministically by the server. */
+  timeline?: TimelineEvent[];
 }
 
 export function initialState(c: Pick<SimCase, "id">, mode: Mode): SimState {
@@ -66,6 +69,7 @@ export function initialState(c: Pick<SimCase, "id">, mode: Mode): SimState {
     ended: false,
     endReason: null,
     log: [],
+    timeline: [],
   };
 }
 

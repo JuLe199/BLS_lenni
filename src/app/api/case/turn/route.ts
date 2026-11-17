@@ -7,6 +7,7 @@ import { checkEntailment } from "@/lib/sim/entailment";
 import { transcriptForModel, type ChatItem } from "@/lib/sim/chat";
 import { applyAedSteps, endOfTurnAed, postTurnAutoAnalysis, preTurnAedEvents, type AedStep, type SimState } from "@/lib/sim/state";
 import { checkAccess } from "@/lib/server/access";
+import { timelineEvents } from "@/lib/sim/monitor";
 
 export const maxDuration = 60;
 
@@ -168,6 +169,7 @@ export async function POST(req: NextRequest) {
     endReason: ended ? (turn.endReason as SimState["endReason"]) : null,
     log: [...state.log, { turn: state.turn + 1, input, completed: newCompleted, pitfalls: newPitfalls }],
   };
+  next.timeline = [...(state.timeline ?? []), ...timelineEvents(state, next, c.monitor)];
 
   newItems.push({
     kind: "scene",

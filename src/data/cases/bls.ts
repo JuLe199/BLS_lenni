@@ -224,6 +224,7 @@ ${COMMON_AED_FLOW}`,
       { id: "skin", label: "Appearance", text: "Grey-pale face, no movement apart from the occasional gasp.", revealWhen: "Learner looks at the patient more closely." },
     ],
     aed: { type: "semi-automatic", availability: "Public-access AED in the station hall, ~1 min away – must be fetched by a helper.", rhythms: ["shockable", "non-shockable"] },
+    monitor: { ecg: ["vf", "pea"] },
     checklist: [
       item.safety(),
       item.response(),
@@ -307,6 +308,7 @@ ${COMMON_AED_FLOW}`,
       { id: "trolley", label: "Emergency trolley", text: "AED, pocket mask and bag-valve-mask with oxygen – no backboard.", revealWhen: "The trolley is brought or the learner asks what is on it." },
     ],
     aed: { type: "semi-automatic", availability: "On the ward emergency trolley in the corridor (~20 s away) – must be brought.", rhythms: ["non-shockable", "non-shockable"] },
+    monitor: { ecg: ["pea", "pea"] },
     checklist: [
       item.response(),
       {
@@ -427,6 +429,7 @@ ${COMMON_AED_FLOW}`,
       { id: "recovery", label: "After the shock", text: "Tom groans, moves his arms, pushes your hands away, blinks and looks around; he now breathes regularly and effortlessly.", revealWhen: "SYSTEM/SCRIPT: one turn after CPR was resumed following the shock." },
     ],
     aed: { type: "fully-automatic", availability: "Wall cabinet at the hall entrance (~30 m), unlocked – a teammate can fetch it.", rhythms: ["shockable", "non-shockable"] },
+    monitor: { ecg: ["vf", "sinus"], rosc: { afterFact: "recovery", hr: 104, spo2: 93, sys: 112, dia: 68, crt: 3 } },
     checklist: [
       item.response(),
       item.callEms("Asking a teammate to call 112 on speaker counts if explicitly instructed."),
@@ -503,6 +506,7 @@ ${COMMON_AED_FLOW}`,
       { id: "aed", label: "AED", text: "No AED in sight. Per dispatcher: nearest registered AED ~400 m away (pharmacy); a community first responder has been alerted and is bringing an AED.", revealWhen: "Dispatcher asks about the AED / learner asks for one." },
     ],
     aed: { type: "semi-automatic", availability: "Brought by an alerted community first responder after a few minutes.", rhythms: ["shockable", "shockable"] },
+    monitor: { ecg: ["vf", "vf"] },
     checklist: [
       item.safety(),
       item.response(),
@@ -587,6 +591,7 @@ Extra rule: Only report aedSteps "pads_attached" once BOTH pads are on bare skin
       { id: "aed", label: "AED", text: "Semi-automatic AED in the corridor, 15 m away.", revealWhen: "Learner asks for/sends for the AED." },
     ],
     aed: { type: "semi-automatic", availability: "Corridor cabinet, 15 m – a colleague can fetch it within seconds.", rhythms: ["shockable", "shockable"] },
+    monitor: { ecg: ["pvt", "vf"] },
     checklist: [
       item.response(),
       item.callEms("Delegating to Sven or Aylin counts if explicit (who calls, on speaker)."),
@@ -693,6 +698,7 @@ For this case, aedSteps report what the CALLER/NEIGHBOUR does on the dispatcher'
       { id: "aed_registry", label: "AED registry", text: "Public AED in the pharmacy on the corner, ~150 m, open now.", revealWhen: "Dispatcher checks for a nearby AED / asks about an AED." },
     ],
     aed: { type: "semi-automatic", availability: "Public AED in the pharmacy ~150 m away (registry) – needs a second bystander to fetch it.", rhythms: ["shockable", "non-shockable"] },
+    monitor: null,
     checklist: [
       {
         id: "location",
@@ -866,6 +872,7 @@ ${COMMON_AED_FLOW}`,
       { id: "feedback", label: "Feedback device", text: "Accelerometer puck available; shows compression depth and rate.", revealWhen: "Learner uses or asks for the feedback device." },
     ],
     aed: { type: "semi-automatic", availability: "Crew defibrillator in AED mode – at the bedside with the crew.", rhythms: ["non-shockable", "non-shockable"] },
+    monitor: { ecg: ["asystole", "asystole"] },
     checklist: [
       item.response(),
       {

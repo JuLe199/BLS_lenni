@@ -13,6 +13,7 @@ import { formatClock, initialState, type Mode, type SimState } from "@/lib/sim/s
 import { computeResult } from "@/lib/sim/scoring";
 import { clearAccessCode, clearSession, getAccessCode, loadSession, recordResult, saveSession, setAccessCode } from "@/lib/progress";
 import AedDevice from "@/components/AedDevice";
+import PatientMonitor from "@/components/PatientMonitor";
 import Debrief from "@/components/Debrief";
 import { CitationChip } from "@/components/GuidelineCitation";
 
@@ -138,7 +139,15 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
   const finish = useCallback(
     (s: SimState) => {
       const r = computeResult(pc, s);
-      recordResult({ caseId: pc.id, date: new Date().toISOString(), score: r.score, passed: r.passed, mode: s.mode });
+      recordResult({
+        caseId: pc.id,
+        date: new Date().toISOString(),
+        score: r.score,
+        passed: r.passed,
+        mode: s.mode,
+        done: r.done.map((x) => x.id),
+        missed: r.missed.map((x) => x.id),
+      });
       clearSession(pc.id);
       setPhase("debrief");
       window.scrollTo({ top: 0 });
@@ -271,7 +280,7 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
           <ul className="grid gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-2">
             <li className="flex gap-2"><span className="mt-0.5 text-blue-500">①</span>Type what you do or say – as precisely as you would act. Bystanders only do what you tell them.</li>
             <li className="flex gap-2"><span className="mt-0.5 text-blue-500">②</span>Scenario time only moves when you act; take a moment to think.</li>
-            <li className="flex gap-2"><span className="mt-0.5 text-blue-500">③</span>The AED behaves deterministically – rhythm results are fixed by the case, not by the AI.</li>
+            <li className="flex gap-2"><span className="mt-0.5 text-blue-500">③</span>The AED and the training monitor (ECG, SpO₂, blood pressure, capillary refill) behave deterministically – they react to your CPR, the pads and shocks as fixed by the case, not by the AI.</li>
             <li className="flex gap-2"><span className="mt-0.5 text-blue-500">④</span>Every teaching statement is quoted from the ERC BLS 2025 guideline and verified word-for-word.</li>
           </ul>
         </div>
@@ -330,6 +339,8 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
           <span className="text-[11px] text-slate-400">Turn {state.turn}</span>
         </div>
       </div>
+
+      {pc.monitor && <PatientMonitor state={state} monitor={pc.monitor} />}
 
       {pc.aed && (
         <AedDevice
@@ -409,6 +420,14 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
 
       <div className="flex min-h-0 flex-1 gap-4">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          {pc.monitor && (
+            <details className="group lg:hidden" open>
+              <summary className="mb-1 cursor-pointer list-none text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <span className="group-open:hidden">▸ Show monitor</span><span className="hidden group-open:inline">▾ Hide monitor</span>
+              </summary>
+              <PatientMonitor state={state} monitor={pc.monitor} compact />
+            </details>
+          )}
           {pc.aed && (
             <div className="lg:hidden">
               <AedDevice aed={state.aed} config={pc.aed} disabled={Boolean(loading)} onShockButton={() => send("I make sure nobody is touching the patient and press the shock button.")} />

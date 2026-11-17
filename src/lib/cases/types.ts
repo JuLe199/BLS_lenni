@@ -58,6 +58,21 @@ export interface CaseAed {
   rhythms: Rhythm[];
 }
 
+/** ECG rhythm shown on the training monitor. vf/pvt are shockable, the others are not. */
+export type EcgRhythm = "vf" | "pvt" | "asystole" | "pea" | "sinus";
+export const SHOCKABLE_ECG: EcgRhythm[] = ["vf", "pvt"];
+
+/**
+ * Authored physiology for the training monitor (deterministic – never decided by the AI).
+ * `ecg[i]` is the rhythm the AED finds at analysis i+1 and must agree with `aed.rhythms[i]`
+ * (checked by verify:content). After the last entry the rhythm stays the same.
+ */
+export interface CaseMonitor {
+  ecg: EcgRhythm[];
+  /** Return of spontaneous circulation: shown once the authored fact `afterFact` has been revealed. */
+  rosc?: { afterFact: string; hr: number; spo2: number; sys: number; dia: number; crt: number };
+}
+
 export interface SimCase {
   id: string;
   module: "bls";
@@ -80,6 +95,8 @@ export interface SimCase {
   ending: string;
   facts: CaseFact[];
   aed: CaseAed | null;
+  /** Training monitor (ECG, SpO2, blood pressure, capillary refill). null = no monitor (e.g. dispatcher case). */
+  monitor: CaseMonitor | null;
   checklist: ChecklistItem[];
   pitfalls: Pitfall[];
   teaching: TeachingPoint[];

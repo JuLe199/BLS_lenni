@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
-import { BookOpenText, HeartPulse, LayoutDashboard, Menu, Moon, ShieldCheck, Sun, X, Lock } from "lucide-react";
+import { BookOpenText, GraduationCap, HeartPulse, LayoutDashboard, Menu, Moon, ShieldCheck, Sun, X, Lock, Zap } from "lucide-react";
 import { APP_NAME, MODULES } from "@/lib/brand";
 import { useResults } from "@/lib/progress";
 
@@ -40,8 +39,7 @@ function NavContent({ onNavigate, caseIds }: { onNavigate?: () => void; caseIds:
     <div className="flex h-full flex-col">
       <div className="px-5 pb-5 pt-6">
         <Link href="/" onClick={onNavigate} className="block">
-          <Image src="/tum-logo.png" alt="TUM Universitätsklinikum" width={130} height={46} priority className="h-8 w-auto brightness-0 invert" />
-          <p className="mt-3 text-lg font-bold tracking-tight text-white">
+          <p className="text-lg font-bold tracking-tight text-white">
             {APP_NAME.slice(0, 1)}
             <span className="text-resus">{APP_NAME.slice(1)}</span>
           </p>
@@ -52,6 +50,9 @@ function NavContent({ onNavigate, caseIds }: { onNavigate?: () => void; caseIds:
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
         <Link href="/" onClick={onNavigate} className={linkCls(pathname === "/")}>
           <LayoutDashboard className="h-4 w-4" /> Dashboard
+        </Link>
+        <Link href="/progress" onClick={onNavigate} className={linkCls(pathname.startsWith("/progress"))}>
+          <GraduationCap className="h-4 w-4" /> Learning progress
         </Link>
 
         <p className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Modules</p>
@@ -78,6 +79,11 @@ function NavContent({ onNavigate, caseIds }: { onNavigate?: () => void; caseIds:
             </div>
           )
         )}
+
+        <p className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Knowledge</p>
+        <Link href="/aed" onClick={onNavigate} className={linkCls(pathname.startsWith("/aed"))}>
+          <Zap className="h-4 w-4 text-aed" /> AED training
+        </Link>
 
         <p className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Reference</p>
         <Link href="/guideline" onClick={onNavigate} className={linkCls(pathname.startsWith("/guideline"))}>

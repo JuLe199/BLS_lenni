@@ -16,6 +16,10 @@ export interface StoredResult {
   score: number;
   passed: boolean;
   mode: Mode;
+  /** Checklist item ids that counted (since v2 – older results lack them). */
+  done?: string[];
+  /** Checklist item ids missed or cancelled by a pitfall. */
+  missed?: string[];
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -112,4 +116,55 @@ export function setAccessCode(code: string) {
 }
 export function clearAccessCode() {
   sessionStorage.removeItem(ACCESS_KEY);
+}
+
+/* ---------------------------------------------------------------- AED training module */
+
+const AED_KEY = "els_aed_v1";
+
+export interface AedProgress {
+  /** Lesson ids marked as read. */
+  lessons: string[];
+  /** Best quiz result in percent (null = not taken). */
+  quizBest: number | null;
+  quizAttempts: number;
+  /** Pad placement exercise solved. */
+  padsDone: boolean;
+  /** AED step-by-step drill completed without error. */
+  drillDone: boolean;
+}
+
+const AED_EMPTY: AedProgress = { lessons: [], quizBest: null, quizAttempts: 0, padsDone: false, drillDone: false };
+
+let cachedAedRaw: string | null = null;
+let cachedAed: AedProgress = AED_EMPTY;
+function aedSnapshot(): AedProgress {
+  const raw = localStorage.getItem(AED_KEY);
+  if (raw !== cachedAedRaw) {
+    cachedAedRaw = raw;
+    try {
+      cachedAed = raw ? { ...AED_EMPTY, ...(JSON.parse(raw) as Partial<AedProgress>) } : AED_EMPTY;
+    } catch {
+      cachedAed = AED_EMPTY;
+    }
+  }
+  return cachedAed;
+}
+
+export function useAedProgress(): AedProgress {
+  return useSyncExternalStore(subscribe, aedSnapshot, () => AED_EMPTY);
+}
+
+export function updateAedProgress(fn: (p: AedProgress) => AedProgress) {
+  try {
+    localStorage.setItem(AED_KEY, JSON.stringify(fn(aedSnapshot())));
+  } catch {
+    /* storage unavailable – progress just isn't kept */
+  }
+  emit();
+}
+
+export function resetProgress() {
+  for (const k of [RESULTS_KEY, AED_KEY]) localStorage.removeItem(k);
+  emit();
 }
