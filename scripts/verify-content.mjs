@@ -109,8 +109,21 @@ for (const q of AED_QUIZ) {
   if (!(q.correct >= 0 && q.correct < q.options.length)) errors.push(`[aed-training] quiz ${q.id}: invalid answer index`);
 }
 
+// Knowledge sections (BLS + ALS): every quote verbatim, quiz answers valid
+const { KNOWLEDGE, knowledgeQuotes } = await import(path.join(root, "src/data/knowledge.ts"));
+let knowledgeCount = 0;
+for (const t of knowledgeQuotes()) {
+  knowledgeCount++;
+  const p = passages.get(t.ref);
+  if (!p) errors.push(`[knowledge] unknown passage "${t.ref}"`);
+  else if (norm(t.quote).length < 20) errors.push(`[knowledge] quote too short in ${t.ref}`);
+  else if (!norm(p.text).includes(norm(t.quote))) errors.push(`[knowledge] quote not verbatim in ${t.ref}: "${t.quote.slice(0, 80)}…"`);
+}
+for (const m of Object.values(KNOWLEDGE))
+  for (const q of m.quiz) if (!(q.correct >= 0 && q.correct < q.options.length)) errors.push(`[knowledge] ${m.id} quiz ${q.id}: invalid answer index`);
+
 if (errors.length) {
   console.error(`✗ ${errors.length} content error(s):\n` + errors.map((e) => "  - " + e).join("\n"));
   process.exit(1);
 }
-console.log(`✓ ${BLS_CASES.length} BLS + ${ALS_CASES.length} ALS cases · ${refs} guideline references · ${quotes} verbatim teaching quotes · ${aedQuotes} AED-module quotes – all verified against ${passages.size} passages (BLS + ALS).`);
+console.log(`✓ ${BLS_CASES.length} BLS + ${ALS_CASES.length} ALS cases · ${refs} guideline references · ${quotes} verbatim teaching quotes · ${aedQuotes} AED-module quotes · ${knowledgeCount} knowledge quotes – all verified against ${passages.size} passages (BLS + ALS).`);

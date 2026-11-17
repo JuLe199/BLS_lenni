@@ -4,6 +4,8 @@ import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import { APP_NAME_LONG, APP_TAGLINE } from "@/lib/brand";
 import { BLS_CASES } from "@/data/cases/bls";
+import { ALS_CASES } from "@/data/cases/als";
+import TeamLeader from "@/components/TeamLeader";
 
 const interSans = Inter({ variable: "--font-app-sans", subsets: ["latin"] });
 const robotoMono = Roboto_Mono({ variable: "--font-app-mono", subsets: ["latin"] });
@@ -25,10 +27,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body className="min-h-full">
         <div className="flex min-h-screen">
-          <Sidebar caseIds={BLS_CASES.map((c) => c.id)} />
+          <Sidebar caseIds={{ bls: BLS_CASES.map((c) => c.id), als: ALS_CASES.map((c) => c.id) }} />
           <div className="flex min-h-screen w-full min-w-0 flex-1 flex-col lg:pl-64">
             <main className="flex-1 pt-14 lg:pt-0">{children}</main>
           </div>
+          <TeamLeader />
         </div>
       </body>
     </html>

@@ -164,7 +164,51 @@ export function updateAedProgress(fn: (p: AedProgress) => AedProgress) {
   emit();
 }
 
+/* ---------------------------------------------------------------- knowledge sections (BLS / ALS) */
+
+const KNOWLEDGE_KEY = "els_knowledge_v1";
+
+export interface KnowledgeProgressEntry {
+  chapters: string[];
+  quizBest: number | null;
+  quizAttempts: number;
+}
+export type KnowledgeProgress = Record<"bls" | "als", KnowledgeProgressEntry>;
+
+const K_ENTRY: KnowledgeProgressEntry = { chapters: [], quizBest: null, quizAttempts: 0 };
+const K_EMPTY: KnowledgeProgress = { bls: K_ENTRY, als: K_ENTRY };
+
+let cachedKRaw: string | null = null;
+let cachedK: KnowledgeProgress = K_EMPTY;
+function knowledgeSnapshot(): KnowledgeProgress {
+  const raw = localStorage.getItem(KNOWLEDGE_KEY);
+  if (raw !== cachedKRaw) {
+    cachedKRaw = raw;
+    try {
+      const parsed = raw ? (JSON.parse(raw) as Partial<KnowledgeProgress>) : {};
+      cachedK = { bls: { ...K_ENTRY, ...parsed.bls }, als: { ...K_ENTRY, ...parsed.als } };
+    } catch {
+      cachedK = K_EMPTY;
+    }
+  }
+  return cachedK;
+}
+
+export function useKnowledgeProgress(): KnowledgeProgress {
+  return useSyncExternalStore(subscribe, knowledgeSnapshot, () => K_EMPTY);
+}
+
+export function updateKnowledgeProgress(id: "bls" | "als", fn: (p: KnowledgeProgressEntry) => KnowledgeProgressEntry) {
+  try {
+    const cur = knowledgeSnapshot();
+    localStorage.setItem(KNOWLEDGE_KEY, JSON.stringify({ ...cur, [id]: fn(cur[id]) }));
+  } catch {
+    /* storage unavailable */
+  }
+  emit();
+}
+
 export function resetProgress() {
-  for (const k of [RESULTS_KEY, AED_KEY]) localStorage.removeItem(k);
+  for (const k of [RESULTS_KEY, AED_KEY, KNOWLEDGE_KEY]) localStorage.removeItem(k);
   emit();
 }

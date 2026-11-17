@@ -1,9 +1,18 @@
 # eLS – Life Support Case Trainer (working title)
 
 Case-based resuscitation e-learning for **nurses, physicians and EMS staff**, built on the eKLINAM stack
-(Next.js 16, Tailwind 4, Gemini). Module 1: **Adult Basic Life Support**, grounded exclusively in the
-*European Resuscitation Council Guidelines 2025 – Adult Basic Life Support* (Resuscitation 215 (2025) 110771).
-ALS / PLS / Special Circumstances are prepared as modules (“soon”).
+(Next.js 16, Tailwind 4, Gemini). Modules: **Adult Basic Life Support** and **Adult Advanced Life Support**,
+grounded exclusively in the *ERC Guidelines 2025 – Adult BLS* (Resuscitation 215 (2025) 110771) and
+*Adult ALS* (Resuscitation 215 (2025) 110769). Special Circumstances is prepared as a module (“soon”).
+
+What learners get:
+- **Cases** (7 BLS, 3 ALS) with a deterministic training monitor (ECG, SpO₂, NIBP, capillary refill; ETCO₂ in ALS).
+  In ALS the case engine (`src/lib/sim/als.ts`) decides rhythm per check, ROSC, IV/IO success and drug timing.
+- **Knowledge sections** `/learn/bls`, `/learn/als` in guideline order, each with a quiz (`src/data/knowledge.ts`),
+  plus the AED training module `/aed`.
+- **Ask the Team Leader**: a drawer on every page (`/api/ask`) that answers questions only from the guideline
+  passages, statement by statement with verified verbatim quotes.
+- **Learning progress** `/progress`: 60 % cases passed, 40 % knowledge (BLS, ALS, AED), competencies per module.
 
 ## Start locally
 
@@ -36,7 +45,9 @@ APP_ACCESS_CODE=...                 # required in production; unset = open in lo
 | Repair → withhold | One repair attempt; otherwise the note is withheld and the learner is told | `src/app/api/case/turn/route.ts` |
 | Narration filter | Removes sentences announcing shock decisions, citing the guideline, or with unsupported clinical numbers | `src/lib/sim/guards.ts` |
 | Deterministic debrief | Score, pass/fail and debrief come from the authored checklist – no AI text | `src/lib/sim/scoring.ts`, `src/components/Debrief.tsx` |
-| Content CI | Fails on unknown passage ids or non-verbatim teaching quotes | `npm run verify:content` |
+| Deterministic ALS engine | Rhythm checks, shocks, drug timing pitfalls, ROSC requirements – the model only reports action categories | `src/lib/sim/als.ts`, `npm run test:als` |
+| Team Leader answers | Retrieval over both guidelines; each statement needs verbatim quotes + entailment check; otherwise removed | `src/lib/ask.ts`, `src/app/api/ask/route.ts` |
+| Content CI | Fails on unknown passage ids or non-verbatim teaching quotes (cases, knowledge, quizzes, AED module) | `npm run verify:content` |
 
 ## Content workflow
 
@@ -45,9 +56,9 @@ APP_ACCESS_CODE=...                 # required in production; unset = open in lo
 - **Cases**: edit `src/data/cases/bls.ts`. Each checklist item/pitfall cites passage ids; each teaching
   point must be a verbatim quote. `BLOCKED_BY` defines which pitfalls cancel an item (e.g. a late call).
   Run `npm run verify:content` after every change.
-- **New module (e.g. ALS)**: add a guideline JSON with the same structure, a case file, and register the
-  module in `src/lib/brand.ts`. The engine is module-agnostic except for the BLS guideline import in
-  `src/lib/guideline.ts` (generalise when the second guideline is added).
+- **ALS guideline**: `source/ERC-2025-ALS.pdf` → `npm run guideline:build:als` (needs `pdfplumber`, `pypdfium2`).
+- **New module**: add a guideline JSON, a case file, register it in `src/lib/guideline.ts`, `src/data/cases/index.ts`
+  and `src/lib/brand.ts`.
 
 ## Deployment
 

@@ -1,7 +1,7 @@
 /**
  * Learning progress ("Lernstand") – computed deterministically from stored results.
  */
-import type { AedProgress, StoredResult } from "@/lib/progress";
+import type { AedProgress, KnowledgeProgressEntry, StoredResult } from "@/lib/progress";
 
 export type CompetencyId = "recognition" | "alerting" | "cpr" | "aed" | "als_defib" | "als_drugs" | "als_airway" | "als_causes";
 
@@ -131,7 +131,7 @@ export const LEVELS = [
   { min: 25, label: "In training" },
   { min: 50, label: "Advanced" },
   { min: 75, label: "Competent" },
-  { min: 95, label: "BLS expert" },
+  { min: 95, label: "Resuscitation expert" },
 ];
 
 export interface LearningLevel {
@@ -140,15 +140,42 @@ export interface LearningLevel {
   nextLevel: { label: string; at: number } | null;
   casesPassed: number;
   casesTotal: number;
+  /** Per module: passed / total cases. */
+  byModule: { bls: { passed: number; total: number }; als: { passed: number; total: number } };
   aedShare: number;
+  /** Knowledge sections (chapters read + quiz), 0–1 each. */
+  knowledge: { bls: number; als: number };
+  /** Mean of AED module, BLS knowledge and ALS knowledge (0–1). */
+  knowledgeShare: number;
 }
 
-/** Overall level: 70 % BLS cases passed, 30 % AED training module. */
-export function learningLevel(results: StoredResult[], caseIds: string[], aed: AedProgress, lessonCount: number): LearningLevel {
-  const passed = new Set(results.filter((r) => r.passed).map((r) => r.caseId));
-  const casesPassed = caseIds.filter((id) => passed.has(id)).length;
-  const aedShare = aedModuleShare(aed, lessonCount);
-  const percent = Math.round(70 * (caseIds.length ? casesPassed / caseIds.length : 0) + 30 * aedShare);
+/** Share of a knowledge section completed (0–1): half chapters read, half quiz (≥ 80 % = full). */
+export function knowledgeShareOf(p: KnowledgeProgressEntry, chapterIds: string[]): number {
+  const read = chapterIds.length ? chapterIds.filter((id) => p.chapters.includes(id)).length / chapterIds.length : 0;
+  const quiz = p.quizBest === null ? 0 : Math.min(1, p.quizBest / 80);
+  return 0.5 * read + 0.5 * quiz;
+}
+
+export interface LevelInput {
+  results: StoredResult[];
+  caseIds: { bls: string[]; als: string[] };
+  aed: AedProgress;
+  aedLessonCount: number;
+  knowledge: { bls: KnowledgeProgressEntry; als: KnowledgeProgressEntry };
+  chapterIds: { bls: string[]; als: string[] };
+}
+
+/** Overall level: 60 % cases passed (BLS + ALS), 40 % knowledge (AED module, BLS and ALS knowledge sections). */
+export function learningLevel(x: LevelInput): LearningLevel {
+  const passed = new Set(x.results.filter((r) => r.passed).map((r) => r.caseId));
+  const count = (ids: string[]) => ({ passed: ids.filter((id) => passed.has(id)).length, total: ids.length });
+  const byModule = { bls: count(x.caseIds.bls), als: count(x.caseIds.als) };
+  const casesPassed = byModule.bls.passed + byModule.als.passed;
+  const casesTotal = byModule.bls.total + byModule.als.total;
+  const aedShare = aedModuleShare(x.aed, x.aedLessonCount);
+  const knowledge = { bls: knowledgeShareOf(x.knowledge.bls, x.chapterIds.bls), als: knowledgeShareOf(x.knowledge.als, x.chapterIds.als) };
+  const knowledgeShare = (aedShare + knowledge.bls + knowledge.als) / 3;
+  const percent = Math.round(60 * (casesTotal ? casesPassed / casesTotal : 0) + 40 * knowledgeShare);
   const idx = LEVELS.reduce((a, l, i) => (percent >= l.min ? i : a), 0);
   const nxt = LEVELS[idx + 1];
   return {
@@ -156,7 +183,10 @@ export function learningLevel(results: StoredResult[], caseIds: string[], aed: A
     level: LEVELS[idx].label,
     nextLevel: nxt ? { label: nxt.label, at: nxt.min } : null,
     casesPassed,
-    casesTotal: caseIds.length,
+    casesTotal,
+    byModule,
     aedShare,
+    knowledge,
+    knowledgeShare,
   };
 }

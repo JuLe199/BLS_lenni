@@ -2,9 +2,7 @@
 
 import { useMemo } from "react";
 import { Activity, Info } from "lucide-react";
-import type { CaseMonitor } from "@/lib/cases/types";
-import type { SimState } from "@/lib/sim/state";
-import { RHYTHM_LABEL, isShockable, monitorView, type Trace } from "@/lib/sim/monitor";
+import { RHYTHM_LABEL, isShockable, type MonitorView, type Trace } from "@/lib/sim/monitor";
 
 /* ------------------------------------------------------------------ waveform synthesis
  * Each trace is a seamless loop of `seconds` length, drawn twice side by side and scrolled
@@ -128,35 +126,54 @@ const CIRC = {
   spontaneous: { text: "Spontaneous circulation (ROSC)", cls: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" },
 };
 
+/** Waveform capnography: plateau per breath (illustrative). */
+function capnoWave(rate: number, level: number): Wave {
+  const amp = Math.min(1, Math.max(0.15, level / 45));
+  return periodic(60 / rate, 6, (t) => {
+    const p = t / (60 / rate);
+    const rise = 1 / (1 + Math.exp(-(p - 0.12) * 60));
+    const fall = 1 / (1 + Math.exp((p - 0.55) * 60));
+    return amp * 1.6 * rise * fall - 0.8;
+  });
+}
+
+export type MonitorDisplay = MonitorView & { etco2?: number | null; capnoConnected?: boolean };
+
 /**
- * Training monitor – a mirror of `monitorView()`; it decides nothing itself.
+ * Training monitor – a mirror of `monitorView()` / `alsMonitorView()`; it decides nothing itself.
+ * In ALS mode the rhythm is never named: the learner has to interpret the ECG (revealRhythm after the case).
  */
 export default function PatientMonitor({
-  state,
-  monitor,
+  view: v,
   compact,
+  als,
+  revealRhythm,
 }: {
-  state: Pick<SimState, "aed" | "cpr" | "facts" | "endReason">;
-  monitor: CaseMonitor;
+  view: MonitorDisplay;
   compact?: boolean;
+  als?: boolean;
+  revealRhythm?: boolean;
 }) {
-  const v = monitorView(state, monitor);
   const ecgWave = useMemo(() => waveFor(v.trace, v.hr), [v.trace, v.hr]);
   const pleth = useMemo(() => (v.spo2 && v.hr ? plethWave(v.hr) : null), [v.spo2, v.hr]);
+  const capno = useMemo(() => (v.etco2 ? capnoWave(v.rosc ? 12 : 10, v.etco2) : null), [v.etco2, v.rosc]);
   const flat = useMemo(() => waveFor("none", null), []);
+  const showName = !als || revealRhythm;
 
   const ecgCaption =
     v.trace === "none"
       ? "No ECG – pads not attached"
       : v.trace === "cpr"
         ? "CPR artefact – rhythm not assessable during compressions"
-        : RHYTHM_LABEL[v.rhythm];
+        : showName
+          ? RHYTHM_LABEL[v.rhythm]
+          : "Compressions paused – interpret the rhythm yourself";
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-slate-100 shadow-lg">
       <div className="flex flex-wrap items-center justify-between gap-1 border-b border-white/5 px-3 py-1.5">
         <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-          <Activity className="h-3.5 w-3.5 text-emerald-400" /> Training monitor
+          <Activity className="h-3.5 w-3.5 text-emerald-400" /> {als ? "Defibrillator monitor" : "Training monitor"}
         </span>
         <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ring-1 ${CIRC[v.circulation].cls}`}>{CIRC[v.circulation].text}</span>
       </div>
@@ -164,7 +181,7 @@ export default function PatientMonitor({
       <div className="px-3 pt-2">
         <div className="flex items-center justify-between text-[9px] uppercase tracking-widest">
           <span className="text-emerald-400/80">ECG · pads</span>
-          {v.rhythmVisible && v.trace !== "none" && (
+          {showName && v.rhythmVisible && v.trace !== "none" && (
             <span className={`font-semibold ${v.rosc ? "text-emerald-300" : isShockable(v.rhythm) ? "text-rose-300" : "text-sky-300"}`}>
               {v.rosc ? "perfusing" : isShockable(v.rhythm) ? "shockable" : "non-shockable"}
             </span>
@@ -181,17 +198,29 @@ export default function PatientMonitor({
         </div>
       )}
 
-      <div className="grid grid-cols-[1fr_1fr_1.35fr_1fr] gap-x-3 gap-y-2 border-t border-white/5 px-3 py-2">
+      {als && !compact && (
+        <div className="px-3 pt-1.5">
+          <p className="text-[9px] uppercase tracking-widest text-yellow-400/80">CO₂ · capnography</p>
+          <Sweep wave={capno ?? flat} color={capno || v.capnoConnected ? "#facc15" : "#475569"} dashed={!capno && !v.capnoConnected} label={capno ? "Capnography waveform" : v.capnoConnected ? "Capnography connected – no exhaled CO₂ while compressions are paused" : "No capnography"} />
+        </div>
+      )}
+
+      <div className={`grid gap-x-3 gap-y-2 border-t border-white/5 px-3 py-2 ${als ? "grid-cols-3" : "grid-cols-[1fr_1fr_1.35fr_1fr]"}`}>
         <Num label="HR" value={v.hr === null ? "---" : String(v.hr)} unit="/min" color="text-emerald-400" sub={v.circulation === "spontaneous" ? "pulse present" : "no pulse"} />
         <Num label="SpO₂" value={v.spo2 === null ? "---" : String(v.spo2)} unit="%" color="text-cyan-300" sub={v.spo2 === null ? "no signal" : undefined} />
         <Num label="NIBP" value={v.sys === null ? "---" : `${v.sys}/${v.dia}`} color="text-rose-300" sub={v.sys === null ? "not measurable" : "mmHg"} />
         <Num label="Cap. refill" value={v.crt === null ? "---" : String(v.crt)} unit={v.crt === null ? undefined : "s"} color="text-amber-300" sub={v.crt === null ? "no refill" : "recapillarisation"} />
+        {als && (
+          <Num label="ETCO₂" value={v.etco2 == null ? "---" : String(v.etco2)} unit={v.etco2 == null ? undefined : "mmHg"} color="text-yellow-300" sub={v.etco2 == null ? (v.capnoConnected ? "no flow – CPR paused" : "no capnography") : v.rosc ? "after ROSC" : "during CPR"} />
+        )}
       </div>
 
       <div className="flex gap-1.5 border-t border-white/5 bg-white/[0.03] px-3 py-1.5 text-[9.5px] leading-snug text-slate-400">
         <Info className="mt-px h-3 w-3 shrink-0" />
         <span>
-          Training view, generated by the case – not by the AI. In real BLS you decide by responsiveness and breathing, not by monitor values.
+          {als
+            ? "Training view, generated by the case engine – not by the AI. The rhythm is not named: decide yourself whether it is shockable."
+            : "Training view, generated by the case – not by the AI. In real BLS you decide by responsiveness and breathing, not by monitor values."}
         </span>
       </div>
     </div>

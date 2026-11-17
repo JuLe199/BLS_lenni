@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
-import { BookOpenText, GraduationCap, HeartPulse, LayoutDashboard, Menu, Moon, ShieldCheck, Sun, X, Lock, Zap } from "lucide-react";
+import { BookOpen, BookOpenText, GraduationCap, HeartPulse, LayoutDashboard, Menu, Moon, ShieldCheck, Sun, X, Lock, Zap } from "lucide-react";
 import { APP_NAME, MODULES } from "@/lib/brand";
 import { useResults } from "@/lib/progress";
 
@@ -23,12 +23,12 @@ function toggleDark() {
   window.dispatchEvent(new Event("els-darkmode"));
 }
 
-function NavContent({ onNavigate, caseIds }: { onNavigate?: () => void; caseIds: string[] }) {
+function NavContent({ onNavigate, caseIds }: { onNavigate?: () => void; caseIds: Record<string, string[]> }) {
   const pathname = usePathname();
   const dark = useDark();
   const results = useResults();
   const passedCases = new Set(results.filter((r) => r.passed).map((r) => r.caseId));
-  const blsDone = caseIds.filter((id) => passedCases.has(id)).length;
+  const done = (m: string) => (caseIds[m] ?? []).filter((id) => passedCases.has(id)).length;
 
   const linkCls = (active: boolean) =>
     `flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors ${
@@ -58,14 +58,14 @@ function NavContent({ onNavigate, caseIds }: { onNavigate?: () => void; caseIds:
         <p className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Modules</p>
         {MODULES.map((m) =>
           m.status === "live" && m.href ? (
-            <Link key={m.id} href={m.href} onClick={onNavigate} className={linkCls(pathname.startsWith(m.href))}>
+            <Link key={m.id} href={m.href} onClick={onNavigate} className={linkCls(pathname === m.href || pathname.startsWith(m.href + "/"))}>
               <HeartPulse className="h-4 w-4 text-resus" />
               <span className="min-w-0 flex-1">
                 <span className="block">{m.short} cases</span>
                 <span className="block text-[10px] font-normal text-slate-400">{m.name}</span>
               </span>
               <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] text-slate-300">
-                {blsDone}/{caseIds.length}
+                {done(m.id)}/{caseIds[m.id]?.length ?? 0}
               </span>
             </Link>
           ) : (
@@ -81,6 +81,11 @@ function NavContent({ onNavigate, caseIds }: { onNavigate?: () => void; caseIds:
         )}
 
         <p className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Knowledge</p>
+        {MODULES.filter((m) => m.status === "live" && m.learn).map((m) => (
+          <Link key={m.id} href={m.learn!} onClick={onNavigate} className={linkCls(pathname.startsWith(m.learn!))}>
+            <BookOpen className="h-4 w-4 text-knowledge" /> {m.short} knowledge
+          </Link>
+        ))}
         <Link href="/aed" onClick={onNavigate} className={linkCls(pathname.startsWith("/aed"))}>
           <Zap className="h-4 w-4 text-aed" /> AED training
         </Link>
@@ -99,14 +104,14 @@ function NavContent({ onNavigate, caseIds }: { onNavigate?: () => void; caseIds:
           {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />} {dark ? "Light mode" : "Dark mode"}
         </button>
         <p className="px-3 pt-2 text-[10px] leading-snug text-slate-500">
-          Training tool. Not a substitute for certified BLS courses or local protocols.
+          Training tool. Not a substitute for certified BLS/ALS courses or local protocols.
         </p>
       </div>
     </div>
   );
 }
 
-export default function Sidebar({ caseIds }: { caseIds: string[] }) {
+export default function Sidebar({ caseIds }: { caseIds: Record<string, string[]> }) {
   const [open, setOpen] = useState(false);
   return (
     <>

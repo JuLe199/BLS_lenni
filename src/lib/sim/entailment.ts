@@ -13,20 +13,21 @@ export async function checkEntailment(
   model: string,
   note: string,
   citations: VerifiedCitation[],
-  learnerAction: string
+  learnerAction: string,
+  opts: { noteKind?: string; source?: string; contextLabel?: string } = {}
 ): Promise<{ ok: boolean; problems: string[] }> {
   const prompt = `You are a strict fact-checker for a medical training app.
 
-NOTE (feedback shown to a learner in a Basic Life Support simulation):
+NOTE (${opts.noteKind ?? "feedback shown to a learner in a resuscitation simulation"}):
 """${note}"""
 
-QUOTES (verbatim excerpts from the ERC Guidelines 2025 Adult BLS – the ONLY allowed evidence):
+QUOTES (verbatim excerpts from the ${opts.source ?? "ERC Guidelines 2025 (Adult BLS / Adult ALS)"} – the ONLY allowed evidence):
 ${citations.map((c, i) => `${i + 1}. "${c.quote}"`).join("\n")}
 
-LEARNER ACTION in the simulation (context only, not evidence):
+${opts.contextLabel ?? "LEARNER ACTION in the simulation"} (context only, not evidence):
 """${learnerAction}"""
 
-Task: Identify every statement in NOTE that conveys resuscitation knowledge – a fact, a recommendation, a reason/consequence, a definition or a number. Each such statement must be directly supported by the QUOTES (close paraphrase is fine; adding facts, reasons, numbers or stronger wording than the quotes is NOT). Statements that merely describe what the learner did or did not do, or that address the learner (e.g. "Think about…", "You moved the patient"), need no support.
+Task: Identify every statement in NOTE that conveys resuscitation knowledge – a fact, a recommendation, a reason/consequence, a definition or a number. Each such statement must be directly supported by the QUOTES (close paraphrase is fine; adding facts, reasons, numbers or stronger wording than the quotes is NOT). Statements that merely describe what the learner did or did not do, or that address the learner (e.g. "Think about…", "You moved the patient"), need no support. The NOTE may be written in another language than the quotes (e.g. German) – a faithful translation counts as support, but a translation that adds or strengthens content does not.
 Return supported=true only if all knowledge statements are supported. List each unsupported statement verbatim in unsupportedClaims.`;
 
   try {

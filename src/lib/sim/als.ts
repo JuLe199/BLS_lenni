@@ -152,7 +152,7 @@ export { DRUG_LABEL };
 export const RHYTHM_SHORT: Record<EcgRhythm, string> = { vf: "VF", pvt: "pVT", asystole: "Asystole", pea: "PEA", sinus: "Organised rhythm with pulse (ROSC)" };
 
 export function applyAlsActions(prev: AlsState, actions: AlsAction[], cfg: CaseAls, t: number, cpr: CprStatus): AlsTurnResult {
-  let s: AlsState = { ...prev, drugs: [...prev.drugs], decisions: [...prev.decisions] };
+  const s: AlsState = { ...prev, drugs: [...prev.drugs], decisions: [...prev.decisions] };
   const notes: string[] = [];
   const pitfalls: AlsAutoPitfall[] = [];
   const events: AlsTurnResult["events"] = [];
@@ -325,6 +325,7 @@ const ARREST_RATE: Record<EcgRhythm, number | null> = { vf: null, pvt: 180, asys
 
 export interface AlsMonitorView extends MonitorView {
   etco2: number | null;
+  capnoConnected: boolean;
 }
 
 export function alsMonitorView(s: AlsState, cfg: CaseAls, cpr: CprStatus): AlsMonitorView {
@@ -335,7 +336,7 @@ export function alsMonitorView(s: AlsState, cfg: CaseAls, cpr: CprStatus): AlsMo
     return {
       trace, rhythm, rhythmVisible: s.padsOn, circulation: "spontaneous",
       hr: s.padsOn ? cfg.rosc.hr : null, spo2: cfg.rosc.spo2, sys: cfg.rosc.sys, dia: cfg.rosc.dia, crt: cfg.rosc.crt,
-      rosc: true, etco2: s.capnography ? cfg.rosc.etco2 : null,
+      rosc: true, etco2: s.capnography ? cfg.rosc.etco2 : null, capnoConnected: s.capnography,
     };
   }
   return {
@@ -350,6 +351,7 @@ export function alsMonitorView(s: AlsState, cfg: CaseAls, cpr: CprStatus): AlsMo
     crt: null,
     rosc: false,
     etco2: s.capnography && cprRunning ? cfg.etco2Cpr : null,
+    capnoConnected: s.capnography,
   };
 }
 
