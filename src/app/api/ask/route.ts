@@ -27,7 +27,8 @@ export interface AskStatement {
   citations: VerifiedCitation[];
 }
 
-function schema(ids: string[]): Schema {
+/** `ids` = null → no enum on passageId (fallback when the API rejects the large enum schema). */
+function schema(ids: string[] | null): Schema {
   return {
     type: Type.OBJECT,
     properties: {
@@ -44,7 +45,7 @@ function schema(ids: string[]): Schema {
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  passageId: { type: Type.STRING, enum: ids },
+                  passageId: ids ? { type: Type.STRING, enum: ids } : { type: Type.STRING, description: "The id from [[ ]] of the passage the quote is copied from." },
                   quote: { type: Type.STRING, description: "Copied character-for-character from the passage." },
                 },
                 required: ["passageId", "quote"],
@@ -99,7 +100,20 @@ export async function POST(req: NextRequest) {
   const ai = new GoogleGenAI({ apiKey });
   const userText = `${prev ? `PREVIOUS QUESTION (context): ${prev.question.slice(0, 400)}\nPREVIOUS ANSWER (context): ${prev.answer.slice(0, 800)}\n\n` : ""}QUESTION: ${question}`;
 
+  // Large enum schemas can be rejected by the API ("too many states"); after the first such error
+  // we drop the enum – verifyCoach() still checks every passage id and quote deterministically.
+  let useEnum = true;
   const call = async (extra?: string): Promise<ModelAnswer> => {
+    try {
+      return await callOnce(extra);
+    } catch (err) {
+      if (!useEnum) throw err;
+      console.warn("ask: model error with enum schema, retrying without enum", err);
+      useEnum = false;
+      return await callOnce(extra);
+    }
+  };
+  const callOnce = async (extra?: string): Promise<ModelAnswer> => {
     const contents = [{ role: "user", parts: [{ text: userText }] }];
     if (extra) contents.push({ role: "user", parts: [{ text: extra }] });
     const res = await ai.models.generateContent({
@@ -109,7 +123,7 @@ export async function POST(req: NextRequest) {
         systemInstruction: systemInstruction(passages),
         temperature: 0.1,
         responseMimeType: "application/json",
-        responseSchema: schema(ids),
+        responseSchema: schema(useEnum ? ids : null),
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         maxOutputTokens: 4096,
       },
