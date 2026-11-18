@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BookOpenText, X, ExternalLink } from "lucide-react";
-import { BLS_GUIDELINE, getPassage, normaliseForMatch } from "@/lib/guideline";
+import { getPassage, guidelineOf, normaliseForMatch } from "@/lib/guideline";
 
 /** Returns [start, end) of `quote` inside `text` using the same normalisation as the server check. */
 function locate(text: string, quote: string): [number, number] | null {
@@ -24,6 +24,7 @@ function locate(text: string, quote: string): [number, number] | null {
 
 export function PassageModal({ passageId, quote, onClose }: { passageId: string; quote?: string; onClose: () => void }) {
   const p = getPassage(passageId);
+  const g = guidelineOf(passageId).source;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -42,7 +43,7 @@ export function PassageModal({ passageId, quote, onClose }: { passageId: string;
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-700">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-              {BLS_GUIDELINE.source.short} · page {p.page}
+              {g.short} · page {p.page}
             </p>
             <h3 className="text-base font-semibold text-slate-900 dark:text-white">{p.title}</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">{p.section}</p>
@@ -64,9 +65,9 @@ export function PassageModal({ passageId, quote, onClose }: { passageId: string;
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-3 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
           <span>
-            {BLS_GUIDELINE.source.authors}. {BLS_GUIDELINE.source.journal}.
+            {g.authors}. {g.journal}.
           </span>
-          <a href={`https://doi.org/${BLS_GUIDELINE.source.doi}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-400">
+          <a href={`https://doi.org/${g.doi}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-400">
             DOI <ExternalLink className="h-3 w-3" />
           </a>
         </div>
@@ -88,7 +89,7 @@ export function CitationChip({ passageId, quote, compact }: { passageId: string;
         title={`${p.title} – page ${p.page}`}
       >
         <BookOpenText className="h-3 w-3 shrink-0" />
-        <span className="truncate">{compact ? `p. ${p.page}` : `${p.title} · p. ${p.page}`}</span>
+        <span className="truncate">{compact ? `${guidelineOf(passageId).id.toUpperCase()} p. ${p.page}` : `${guidelineOf(passageId).id.toUpperCase()} · ${p.title} · p. ${p.page}`}</span>
       </button>
       {open && <PassageModal passageId={passageId} quote={quote} onClose={() => setOpen(false)} />}
     </>

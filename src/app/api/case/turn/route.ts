@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
-import { getCase } from "@/data/cases/bls";
+import { getAnyCase as getCase } from "@/data/cases";
 import { buildSystemInstruction, buildTurnMessage, responseSchema, type ModelTurn } from "@/lib/sim/prompt";
-import { sanitiseNarration, verifyCoach } from "@/lib/sim/guards";
+import { sanitiseNarration, stripRhythmTerms, verifyCoach } from "@/lib/sim/guards";
+import { alsResponseSchema, buildAlsSystemInstruction, buildAlsTurnMessage } from "@/lib/sim/prompt-als";
+import { ALS_ACTIONS, applyAlsActions, autoItemsMet, initialAls, type AlsAction } from "@/lib/sim/als";
+import { ALS_PROMPT_PASSAGES, BLS_GUIDELINE } from "@/lib/guideline";
 import { checkEntailment } from "@/lib/sim/entailment";
 import { transcriptForModel, type ChatItem } from "@/lib/sim/chat";
 import { applyAedSteps, endOfTurnAed, postTurnAutoAnalysis, preTurnAedEvents, type AedStep, type SimState } from "@/lib/sim/state";
 import { checkAccess } from "@/lib/server/access";
+import { timelineEvents, type TimelineEvent } from "@/lib/sim/monitor";
 
 export const maxDuration = 60;
 
@@ -47,22 +51,21 @@ export async function POST(req: NextRequest) {
   const input = (body.input ?? "").trim().slice(0, 800);
   if (!hint && !input) return NextResponse.json({ error: "Empty input." }, { status: 400 });
 
+  const isAls = c.module === "als" && Boolean(c.als);
+  if (isAls && !state.als) state.als = initialAls();
+
   // 1) deterministic device events at the start of the turn (not for hint requests)
-  const pre = hint ? { aed: state.aed, prompts: [], events: [] } : preTurnAedEvents(state.aed, c.aed);
+  const pre = hint || isAls ? { aed: state.aed, prompts: [], events: [] } : preTurnAedEvents(state.aed, c.aed);
   const stateForPrompt: SimState = { ...state, aed: pre.aed };
   const reanalysisAllowed = pre.aed.status === "cpr" && pre.aed.padsAttached && pre.aed.cprTurns >= 1;
 
   const ai = new GoogleGenAI({ apiKey });
-  const systemInstruction = buildSystemInstruction(c);
-  const userMessage = buildTurnMessage({
-    c,
-    state: stateForPrompt,
-    transcript: transcriptForModel(body.items ?? []),
-    input,
-    hint,
-    preTurnEvents: pre.events,
-    reanalysisAllowed,
-  });
+  const systemInstruction = isAls ? buildAlsSystemInstruction(c) : buildSystemInstruction(c);
+  const transcript = transcriptForModel(body.items ?? []);
+  const userMessage = isAls
+    ? buildAlsTurnMessage({ c, state: stateForPrompt, transcript, input, hint })
+    : buildTurnMessage({ c, state: stateForPrompt, transcript, input, hint, preTurnEvents: pre.events, reanalysisAllowed });
+  const pool = isAls ? ALS_PROMPT_PASSAGES : BLS_GUIDELINE.passages;
 
   const call = async (extra?: string): Promise<ModelTurn> => {
     const contents = [{ role: "user", parts: [{ text: userMessage }] }];
@@ -74,7 +77,7 @@ export async function POST(req: NextRequest) {
         systemInstruction,
         temperature: 0.2,
         responseMimeType: "application/json",
-        responseSchema: responseSchema(c),
+        responseSchema: isAls ? alsResponseSchema(c) : responseSchema(c),
         thinkingConfig: { thinkingLevel: THINKING[process.env.GEMINI_THINKING_LEVEL ?? "low"] ?? ThinkingLevel.LOW },
         maxOutputTokens: 8192,
       },
@@ -96,7 +99,7 @@ export async function POST(req: NextRequest) {
   let coach = state.mode === "exam" ? null : turn.coach;
   // Layer 1: deterministic (quotes verbatim, numbers covered). Layer 2: independent entailment check.
   const verifyFull = async (cn: NonNullable<ModelTurn["coach"]>) => {
-    const det = verifyCoach(cn.text, cn.citations ?? []);
+    const det = verifyCoach(cn.text, cn.citations ?? [], pool);
     if (!det.ok) return det;
     const ent = await checkEntailment(ai, MODEL, cn.text, det.citations, hint ? "(The learner asked for a hint.)" : input);
     return ent.ok ? det : { ...det, ok: false, problems: ent.problems };
@@ -141,18 +144,41 @@ export async function POST(req: NextRequest) {
   const allowedSources = [c.opening, c.script, ...c.facts.map((f) => f.text), ...c.resources, input].join(" ");
   const narr = sanitiseNarration(turn.narration ?? "", allowedSources);
   guard.narrationRemoved = narr.removed;
+  if (isAls) {
+    const r = stripRhythmTerms(narr.text, input);
+    narr.text = r.text;
+    guard.narrationRemoved.push(...r.removed);
+  }
 
   // 4) state update – only known ids, deterministic AED
   const known = (ids: string[], pool: string[]) => Array.from(new Set((ids ?? []).filter((x) => pool.includes(x))));
-  const newCompleted = known(turn.completedActions, c.checklist.map((x) => x.id)).filter((x) => !state.completed.includes(x));
-  const newPitfalls = known(turn.pitfalls, c.pitfalls.map((x) => x.id)).filter((x) => !state.pitfalls.includes(x));
+  let newCompleted = known(turn.completedActions, c.checklist.filter((x) => !x.auto).map((x) => x.id)).filter((x) => !state.completed.includes(x));
+  let newPitfalls = known(turn.pitfalls, c.pitfalls.filter((x) => !x.auto).map((x) => x.id)).filter((x) => !state.pitfalls.includes(x));
   const newFacts = known(turn.revealedFacts, c.facts.map((x) => x.id)).filter((x) => !state.facts.includes(x));
 
-  const aedRes = applyAedSteps(pre.aed, (turn.aedSteps ?? []) as AedStep[], c.aed);
+  const aedRes = isAls ? { aed: pre.aed, prompts: [] as string[], ignored: [] as string[] } : applyAedSteps(pre.aed, (turn.aedSteps ?? []) as AedStep[], c.aed);
   guard.aedIgnored = aedRes.ignored;
   const cprAfter = turn.cpr ?? state.cpr;
-  const auto = postTurnAutoAnalysis(endOfTurnAed(pre.aed.status, aedRes.aed), c.aed, cprAfter);
+  const auto = isAls ? { aed: pre.aed, prompts: [] as string[] } : postTurnAutoAnalysis(endOfTurnAed(pre.aed.status, aedRes.aed), c.aed, cprAfter);
   const aedAfter = auto.aed;
+
+  // ALS: deterministic engine (rhythm checks, shocks, drugs, airway) + auto items/pitfalls
+  const tTurn = state.elapsed + Math.max(0, Math.min(240, Math.round(turn.elapsedSeconds || 0)));
+  let alsAfter = state.als;
+  const alsNotes: string[] = [];
+  const alsEvents: TimelineEvent[] = [];
+  if (isAls && state.als && c.als) {
+    const valid = (turn.alsActions ?? []).filter((a): a is AlsAction => (ALS_ACTIONS as readonly string[]).includes(a));
+    const r = applyAlsActions(state.als, valid, c.als, tTurn, cprAfter);
+    alsAfter = r.als;
+    alsNotes.push(...r.notes);
+    for (const e of r.events) alsEvents.push({ t: tTurn, kind: e.kind, label: e.label });
+    const autoPit = c.pitfalls.filter((p) => p.auto && r.pitfalls.includes(p.auto)).map((p) => p.id).filter((id) => !state.pitfalls.includes(id));
+    const met = autoItemsMet(r.als, c.als);
+    const autoItems = c.checklist.filter((x) => x.auto && met.includes(x.auto)).map((x) => x.id).filter((id) => !state.completed.includes(id));
+    newPitfalls = Array.from(new Set([...newPitfalls, ...autoPit]));
+    newCompleted = Array.from(new Set([...newCompleted, ...autoItems]));
+  }
 
   const ended = Boolean(turn.caseComplete) && turn.endReason !== "none";
   const next: SimState = {
@@ -164,10 +190,14 @@ export async function POST(req: NextRequest) {
     facts: [...state.facts, ...newFacts],
     cpr: cprAfter,
     aed: aedAfter,
+    ...(alsAfter ? { als: alsAfter } : {}),
     ended,
     endReason: ended ? (turn.endReason as SimState["endReason"]) : null,
     log: [...state.log, { turn: state.turn + 1, input, completed: newCompleted, pitfalls: newPitfalls }],
   };
+  next.timeline = isAls
+    ? [...(state.timeline ?? []), ...timelineEvents({ ...state, aed: next.aed }, next, null).filter((e) => e.kind === "cpr_start" || e.kind === "cpr_pause"), ...alsEvents]
+    : [...(state.timeline ?? []), ...timelineEvents(state, next, c.monitor)];
 
   newItems.push({
     kind: "scene",
@@ -180,6 +210,7 @@ export async function POST(req: NextRequest) {
   });
   const aedLines = [...pre.prompts, ...aedRes.prompts, ...auto.prompts];
   if (aedLines.length) newItems.push({ kind: "aed", lines: aedLines });
+  for (const n of alsNotes) newItems.push({ kind: "notice", tone: "info", text: n });
   if (coach) newItems.push({ kind: "coach", text: coach.text, trigger: coach.trigger, citations: coach.citations as never });
   if (guard.coachWithheld)
     newItems.push({ kind: "notice", tone: "warn", text: "A coach note was withheld because it could not be verified word-for-word against the guideline." });

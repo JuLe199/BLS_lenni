@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeft, Send, Lightbulb, Flag, Clock, Lock, Play, GraduationCap, ClipboardCheck, ShieldCheck,
-  User, Clapperboard, Volume2, Sparkles, Info, TriangleAlert, Users, Wrench, Eye, CircleCheck,
+  User, Clapperboard, Volume2, Sparkles, Info, TriangleAlert, Users, Wrench, Eye, CircleCheck, MessageCircleQuestion,
 } from "lucide-react";
 import type { PublicCase } from "@/lib/cases/public";
 import { AUDIENCE_LABEL, SETTING_LABEL } from "@/lib/cases/types";
@@ -13,7 +13,12 @@ import { formatClock, initialState, type Mode, type SimState } from "@/lib/sim/s
 import { computeResult } from "@/lib/sim/scoring";
 import { clearAccessCode, clearSession, getAccessCode, loadSession, recordResult, saveSession, setAccessCode } from "@/lib/progress";
 import AedDevice from "@/components/AedDevice";
+import PatientMonitor, { type MonitorDisplay } from "@/components/PatientMonitor";
+import AlsPanel, { ALS_QUICK_ACTIONS } from "@/components/AlsPanel";
+import { monitorView } from "@/lib/sim/monitor";
+import { alsMonitorView } from "@/lib/sim/als";
 import Debrief from "@/components/Debrief";
+import { askTeamLeader } from "@/components/TeamLeader";
 import { CitationChip } from "@/components/GuidelineCitation";
 
 type Phase = "intro" | "running" | "debrief";
@@ -138,7 +143,15 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
   const finish = useCallback(
     (s: SimState) => {
       const r = computeResult(pc, s);
-      recordResult({ caseId: pc.id, date: new Date().toISOString(), score: r.score, passed: r.passed, mode: s.mode });
+      recordResult({
+        caseId: pc.id,
+        date: new Date().toISOString(),
+        score: r.score,
+        passed: r.passed,
+        mode: s.mode,
+        done: r.done.map((x) => x.id),
+        missed: r.missed.map((x) => x.id),
+      });
       clearSession(pc.id);
       setPhase("debrief");
       window.scrollTo({ top: 0 });
@@ -229,19 +242,24 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
     finish(s);
   };
 
+  const isAls = pc.module === "als";
+  const view: MonitorDisplay | null =
+    pc.als && state.als ? alsMonitorView(state.als, pc.als, state.cpr) : pc.monitor ? monitorView(state, pc.monitor) : null;
+  const guidelineName = isAls ? "ERC 2025 Adult ALS and BLS guidelines" : "ERC BLS 2025 guideline";
+
   /* ---------------------------------------------------------------- intro */
   if (phase === "intro") {
     return (
       <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:py-10">
-        <Link href="/bls" className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
-          <ArrowLeft className="h-4 w-4" /> BLS cases
+        <Link href={`/${pc.module}`} className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
+          <ArrowLeft className="h-4 w-4" /> {pc.module.toUpperCase()} cases
         </Link>
         <div className="overflow-hidden rounded-3xl bg-navy text-white shadow-xl">
           <div className="relative px-6 py-7 sm:px-8">
             <svg className="pointer-events-none absolute inset-x-0 bottom-0 h-16 w-full opacity-30" viewBox="0 0 600 60" preserveAspectRatio="none" aria-hidden>
               <polyline className="ecg-line" fill="none" stroke="#e5484d" strokeWidth="2" points="0,40 120,40 140,40 150,15 160,55 170,40 260,40 280,40 290,10 300,58 310,40 420,40 440,40 450,18 460,52 470,40 600,40" />
             </svg>
-            <p className="text-xs font-semibold uppercase tracking-wider text-resus">Case {pc.number} · BLS · {SETTING_LABEL[pc.setting]}</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-resus">Case {pc.number} · {pc.module.toUpperCase()} · {SETTING_LABEL[pc.setting]}</p>
             <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{pc.title}</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-300">{pc.teaser}</p>
             <div className="mt-4 flex flex-wrap gap-1.5">
@@ -271,8 +289,10 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
           <ul className="grid gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-2">
             <li className="flex gap-2"><span className="mt-0.5 text-blue-500">①</span>Type what you do or say – as precisely as you would act. Bystanders only do what you tell them.</li>
             <li className="flex gap-2"><span className="mt-0.5 text-blue-500">②</span>Scenario time only moves when you act; take a moment to think.</li>
-            <li className="flex gap-2"><span className="mt-0.5 text-blue-500">③</span>The AED behaves deterministically – rhythm results are fixed by the case, not by the AI.</li>
-            <li className="flex gap-2"><span className="mt-0.5 text-blue-500">④</span>Every teaching statement is quoted from the ERC BLS 2025 guideline and verified word-for-word.</li>
+            <li className="flex gap-2"><span className="mt-0.5 text-blue-500">③</span>{isAls
+              ? "The defibrillator monitor (ECG, SpO₂, blood pressure, ETCO₂) is driven by a deterministic case engine – rhythm, ROSC, IV/IO success and drug timing are fixed by the case, not by the AI. The rhythm is never named: you interpret it."
+              : "The AED and the training monitor (ECG, SpO₂, blood pressure, capillary refill) behave deterministically – they react to your CPR, the pads and shocks as fixed by the case, not by the AI."}</li>
+            <li className="flex gap-2"><span className="mt-0.5 text-blue-500">④</span>Every teaching statement is quoted from the {guidelineName} and verified word-for-word.</li>
           </ul>
         </div>
 
@@ -296,7 +316,7 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
           <button onClick={resume} className="btn-secondary mt-3 w-full"><Play className="h-4 w-4" /> Resume paused attempt</button>
         )}
         <p className="mt-4 text-center text-[11px] text-slate-400">
-          AI-supported simulation for training. Not a substitute for a certified BLS course or local protocols.
+          AI-supported simulation for training. Not a substitute for a certified {isAls ? "ALS" : "BLS"} course or local protocols.
         </p>
       </div>
     );
@@ -307,10 +327,10 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
     return (
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-8">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <Link href="/bls" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
-            <ArrowLeft className="h-4 w-4" /> BLS cases
+          <Link href={`/${pc.module}`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
+            <ArrowLeft className="h-4 w-4" /> {pc.module.toUpperCase()} cases
           </Link>
-          {nextCaseId && <Link href={`/bls/${nextCaseId}`} className="btn-primary !py-2 text-xs">Next case →</Link>}
+          {nextCaseId && <Link href={`/${pc.module}/${nextCaseId}`} className="btn-primary !py-2 text-xs">Next case →</Link>}
         </div>
         <Debrief pc={pc} state={state} onRetry={() => setPhase("intro")} />
       </div>
@@ -330,6 +350,10 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
           <span className="text-[11px] text-slate-400">Turn {state.turn}</span>
         </div>
       </div>
+
+      {view && <PatientMonitor view={view} als={isAls} revealRhythm={state.ended} />}
+
+      {isAls && <AlsPanel state={state} />}
 
       {pc.aed && (
         <AedDevice
@@ -386,16 +410,21 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
     <div className="mx-auto flex h-[calc(100vh-3.5rem)] w-full max-w-7xl flex-col overflow-hidden px-2 py-3 sm:px-4 lg:h-screen">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Link href="/bls" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link>
+          <Link href={`/${pc.module}`} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link>
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-              Case {pc.number} · BLS
+              Case {pc.number} · {pc.module.toUpperCase()}
               <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${state.mode === "exam" ? "bg-resus-light text-resus dark:bg-resus/20" : "bg-knowledge-light text-knowledge dark:bg-knowledge/20"}`}>{state.mode}</span>
             </p>
             <h1 className="truncate text-base font-semibold text-slate-900 dark:text-white sm:text-lg">{pc.title}</h1>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {state.mode === "coached" && (
+            <button onClick={() => askTeamLeader()} className="btn-secondary !px-3 !py-1.5 text-xs" title="Ask the Team Leader a guideline question">
+              <MessageCircleQuestion className="h-3.5 w-3.5 text-knowledge" /> <span className="hidden sm:inline">Team Leader</span>
+            </button>
+          )}
           {state.mode === "coached" && (
             <button onClick={() => send("", true)} disabled={Boolean(loading) || state.ended} className="btn-secondary !px-3 !py-1.5 text-xs">
               <Lightbulb className="h-3.5 w-3.5 text-amber-500" /> Hint
@@ -409,6 +438,14 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
 
       <div className="flex min-h-0 flex-1 gap-4">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          {view && (
+            <details className="group lg:hidden" open>
+              <summary className="mb-1 cursor-pointer list-none text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <span className="group-open:hidden">▸ Show monitor</span><span className="hidden group-open:inline">▾ Hide monitor</span>
+              </summary>
+              <PatientMonitor view={view} als={isAls} revealRhythm={state.ended} compact />
+            </details>
+          )}
           {pc.aed && (
             <div className="lg:hidden">
               <AedDevice aed={state.aed} config={pc.aed} disabled={Boolean(loading)} onShockButton={() => send("I make sure nobody is touching the patient and press the shock button.")} />
@@ -445,6 +482,25 @@ export default function CasePlayer({ pc, nextCaseId }: { pc: PublicCase; nextCas
             <div ref={endRef} />
           </div>
 
+          {!state.ended && isAls && (
+            <div className="-mb-1 flex shrink-0 gap-1.5 overflow-x-auto pb-1">
+              {ALS_QUICK_ACTIONS.map((q) => (
+                <button
+                  key={q.label}
+                  type="button"
+                  disabled={Boolean(loading)}
+                  onClick={() => {
+                    setInput((v) => (v.trim() ? `${v.trim()} ${q.text}` : q.text));
+                    inputRef.current?.focus();
+                  }}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"
+                  title="Adds this instruction to your input – edit before sending"
+                >
+                  <q.icon className="h-3 w-3" /> {q.label}
+                </button>
+              ))}
+            </div>
+          )}
           {!state.ended && (
             <form
               onSubmit={(e) => {

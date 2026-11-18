@@ -10,7 +10,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "guideline:build": "python3 -I scripts/build_guideline.py",
-    "verify:content": "node --no-warnings scripts/verify-content.mjs"
+    "verify:content": "node --no-warnings scripts/verify-content.mjs",
+    "guideline:build:als": "python3 -I scripts/build_guideline_als.py",
+    "test:als": "node --no-warnings scripts/test-als-engine.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",

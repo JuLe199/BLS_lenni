@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { BookOpenText, Bot, Calculator, CheckCheck, Cpu, FileCheck2, ShieldAlert, ShieldCheck } from "lucide-react";
-import { BLS_GUIDELINE } from "@/lib/guideline";
-import { BLS_CASES } from "@/data/cases/bls";
+import { BookOpenText, Bot, Calculator, CheckCheck, Cpu, FileCheck2, MessageCircleQuestion, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ALS_GUIDELINE, BLS_GUIDELINE } from "@/lib/guideline";
+import { ALS_CASES, BLS_CASES } from "@/data/cases";
 
 export const metadata = { title: "How the AI is grounded – eLS" };
 
@@ -9,17 +9,17 @@ const LAYERS = [
   {
     icon: BookOpenText,
     title: "1 · One closed knowledge base",
-    text: `The model receives the ${BLS_GUIDELINE.source.short} as ${BLS_GUIDELINE.passages.length} page-referenced passages (generated mechanically from the PDF) and is instructed to use nothing else for teaching content. If the guideline does not address something, the answer is “not addressed in the guideline” – never a gap-filling guess.`,
+    text: `The model receives the ${BLS_GUIDELINE.source.short} (${BLS_GUIDELINE.passages.length} passages) and the ${ALS_GUIDELINE.source.short} (${ALS_GUIDELINE.passages.length} passages) – page-referenced, generated mechanically from the PDFs – and is instructed to use nothing else for teaching content. If the guideline does not address something, the answer is “not addressed in the guideline” – never a gap-filling guess.`,
   },
   {
     icon: FileCheck2,
     title: "2 · Authored cases, not invented ones",
-    text: `All ${BLS_CASES.length} scenarios are written in advance: findings, people, equipment, the AED rhythm sequence and the ending. The model may only reveal authored findings; it is told never to add vital signs, rhythms or outcomes.`,
+    text: `All ${BLS_CASES.length} BLS and ${ALS_CASES.length} ALS scenarios are written in advance: findings, people, equipment, the rhythm sequence and the ending. The model may only reveal authored findings; it is told never to add vital signs, rhythms or outcomes.`,
   },
   {
     icon: Cpu,
-    title: "3 · Deterministic AED",
-    text: "The model only reports what the learner did (switched on, pads attached, button pressed). Rhythm analysis results and all AED voice prompts come from a state machine and the case script – the model cannot change them.",
+    title: "3 · Deterministic devices and physiology",
+    text: "The model only reports what the learner did (pads attached, rhythm check, shock, drug given …) as fixed categories. AED prompts, the monitor (ECG, SpO₂, blood pressure, ETCO₂), rhythm-check results, IV/IO success, drug timing and ROSC come from state machines and the case script – the model cannot change them. In ALS cases the rhythm is never named: you interpret it.",
   },
   {
     icon: ShieldCheck,
@@ -37,9 +37,14 @@ const LAYERS = [
     text: "The model only decides which checklist items you performed (structured output with fixed ids). The score, pass/fail and the whole debrief are calculated and rendered from authored content – no AI text in the debrief.",
   },
   {
+    icon: MessageCircleQuestion,
+    title: "7 · Ask the Team Leader",
+    text: "Questions are answered from guideline passages selected for the question. The answer is split into statements; each statement must carry verbatim quotes (checked word-for-word, numbers included) and passes the independent entailment check. Unverifiable statements are removed – if nothing survives, the Team Leader says the guidelines do not answer it.",
+  },
+  {
     icon: CheckCheck,
-    title: "7 · Build-time content check",
-    text: "`npm run verify:content` fails if a case references a non-existent passage or if any teaching quote is not verbatim in the guideline.",
+    title: "8 · Build-time content check",
+    text: "`npm run verify:content` fails if a case references a non-existent passage or if any teaching quote in cases, knowledge sections, quizzes or the AED module is not verbatim in the guideline.",
   },
 ];
 

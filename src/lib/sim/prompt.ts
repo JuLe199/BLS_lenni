@@ -53,7 +53,9 @@ export interface ModelTurn {
   completedActions: string[];
   pitfalls: string[];
   revealedFacts: string[];
-  aedSteps: string[];
+  aedSteps?: string[];
+  /** ALS cases only. */
+  alsActions?: string[];
   cpr: SimState["cpr"];
   elapsedSeconds: number;
   coach: { text: string; trigger: "pitfall" | "hint" | "question"; citations: { passageId: string; quote: string }[] } | null;
@@ -78,7 +80,11 @@ export function buildSystemInstruction(c: SimCase): string {
 2. SCENARIO CONTENT comes ONLY from the SCENARIO SCRIPT and FACTS below. Never invent new findings, vital signs, ECG rhythms, injuries, medical history, people, equipment or outcomes. If the learner asks for something the script does not contain, answer minimally and neutrally in line with the script (e.g. "Nothing else is remarkable." / "That equipment is not available here."). Do not escalate or rescue the patient beyond the script.
 3. The AED is controlled by the SYSTEM. You never state rhythm analysis results and never write AED voice prompts – the system appends them after your narration. You only report the learner's AED actions in "aedSteps".
 4. Scores are computed by the system from "completedActions" and "pitfalls". You never give a score or say whether the learner passed.
-5. It is better to say less than to say something not covered by the passages or the script.
+5. It is better to say less than to say something not covered by the passages or the script.${
+  c.monitor
+    ? "\n6. A training MONITOR panel next to the chat shows ECG, SpO2, blood pressure and capillary refill time. It is controlled by the SYSTEM from the case data, the AED and the CPR status. Never state monitor values, rhythms or vital signs yourself; if the learner asks for them, say neutrally that the monitor shows the current values."
+    : ""
+}
 
 ===== NARRATION =====
 - English, second person, present tense, calm and realistic. 2–5 sentences, at most about 90 words. No markdown headings, no lists.

@@ -10,7 +10,7 @@
  *   - sentences that announce AED results, talk about the guideline or contain clinical numbers that
  *     appear neither in the scenario, the learner's input nor the guideline are removed.
  */
-import { findPassageForQuote, getPassage, normaliseForMatch, quoteIsVerbatim, GUIDELINE_CORPUS_NORMALISED } from "@/lib/guideline";
+import { findPassageForQuote, getPassage, normaliseForMatch, quoteIsVerbatim, GUIDELINE_CORPUS_NORMALISED, type Passage } from "@/lib/guideline";
 import type { VerifiedCitation } from "@/lib/sim/chat";
 
 export interface CoachCheck {
@@ -21,13 +21,14 @@ export interface CoachCheck {
 
 const NUMBER_RE = /\d+(?:[.,]\d+)?/g;
 
-export function verifyCoach(text: string, citations: { passageId: string; quote: string }[]): CoachCheck {
+export function verifyCoach(text: string, citations: { passageId: string; quote: string }[], pool?: Passage[]): CoachCheck {
+  const allowed = pool ? new Set(pool.map((p) => p.id)) : null;
   const problems: string[] = [];
   const verified: VerifiedCitation[] = [];
   for (const cit of citations.slice(0, 3)) {
     let pid = cit.passageId;
-    if (!quoteIsVerbatim(pid, cit.quote)) {
-      const other = findPassageForQuote(cit.quote);
+    if (!quoteIsVerbatim(pid, cit.quote) || (allowed && !allowed.has(pid))) {
+      const other = findPassageForQuote(cit.quote, pool);
       if (other) {
         pid = other.id;
       } else {
@@ -75,6 +76,23 @@ export function sanitiseNarration(narration: string, allowedSources: string): { 
         removed.push(sentence);
         return false;
       }
+    }
+    return true;
+  });
+  return { text: kept.join(" ").trim(), removed };
+}
+
+/** ALS: the learner must interpret the monitor – sentences that name or describe a rhythm are removed. */
+const RHYTHM_TERMS =
+  /\b(VF|pVT|PEA|asystol\w*|fibrillat\w*|ventricular tachy\w*|tachycardi\w*|bradycardi\w*|sinus|flat ?line|flatline|shockable|non-shockable|pulseless electrical|electrical activity|organi[sz]ed (?:rhythm|complexes)|QRS|complexes)\b/i;
+
+export function stripRhythmTerms(narration: string, learnerInput: string): { text: string; removed: string[] } {
+  const removed: string[] = [];
+  const kept = sentenceSplit(narration).filter((sentence) => {
+    // quoting the learner's own words back (e.g. their order "shock for VF") is fine
+    if (RHYTHM_TERMS.test(sentence) && !(learnerInput && sentence.includes(learnerInput.slice(0, 30)))) {
+      removed.push(sentence);
+      return false;
     }
     return true;
   });

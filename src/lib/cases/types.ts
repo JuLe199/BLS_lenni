@@ -34,7 +34,31 @@ export interface ChecklistItem {
   critical?: boolean;
   /** Pitfall ids that cancel this item even if it was eventually done (e.g. a late call). */
   blockedBy?: string[];
+  /** ALS: evaluated deterministically by the engine (drug timing, shock decisions …) – never by the AI. */
+  auto?: AlsAutoItem;
 }
+
+/** Deterministic ALS checklist rules (src/lib/sim/als.ts). */
+export type AlsAutoItem =
+  | "rhythm_decisions"
+  | "adrenaline_early_nonshockable"
+  | "adrenaline_after_third_shock"
+  | "amiodarone_after_third_shock"
+  | "amiodarone_after_fifth_shock"
+  | "vector_change"
+  | "vascular_access"
+  | "io_after_failed_iv"
+  | "capnography"
+  | "fluids_given";
+
+/** Deterministic ALS pitfalls (src/lib/sim/als.ts). */
+export type AlsAutoPitfall =
+  | "shock_nonshockable"
+  | "missed_shock"
+  | "adrenaline_too_early"
+  | "amiodarone_too_early"
+  | "amiodarone_nonshockable"
+  | "adrenaline_same_cycle";
 
 export interface Pitfall {
   id: string;
@@ -42,6 +66,8 @@ export interface Pitfall {
   /** For the model: when to flag this. */
   criteria: string;
   refs: string[];
+  /** ALS: flagged deterministically by the engine – never by the AI. */
+  auto?: AlsAutoPitfall;
 }
 
 /** Authored teaching point – `quote` must be verbatim in passage `ref` (checked by verify:content). */
@@ -58,9 +84,44 @@ export interface CaseAed {
   rhythms: Rhythm[];
 }
 
+/** ECG rhythm shown on the training monitor. vf/pvt are shockable, the others are not. */
+export type EcgRhythm = "vf" | "pvt" | "asystole" | "pea" | "sinus";
+export const SHOCKABLE_ECG: EcgRhythm[] = ["vf", "pvt"];
+
+/**
+ * Authored physiology for the training monitor (deterministic – never decided by the AI).
+ * `ecg[i]` is the rhythm the AED finds at analysis i+1 and must agree with `aed.rhythms[i]`
+ * (checked by verify:content). After the last entry the rhythm stays the same.
+ */
+export interface CaseMonitor {
+  ecg: EcgRhythm[];
+  /** Return of spontaneous circulation: shown once the authored fact `afterFact` has been revealed. */
+  rosc?: { afterFact: string; hr: number; spo2: number; sys: number; dia: number; crt: number };
+}
+
+/** Requirements that must be met before an authored ROSC can occur. */
+export type AlsRoscRequirement = "adrenaline" | "amiodarone" | "vector_change" | "fluids" | "oxygen";
+
+/**
+ * ALS case physiology + manual defibrillator (deterministic). The learner reads the rhythm
+ * on the monitor and decides; the engine checks the decisions and the drug timing.
+ */
+export interface CaseAls {
+  /** Rhythm found at rhythm check 1, 2, … (last entry repeats). */
+  rhythms: EcgRhythm[];
+  /** ROSC at the first rhythm check ≥ atCheck at which all requirements are met. */
+  rosc?: { atCheck: number; requires: AlsRoscRequirement[]; hr: number; spo2: number; sys: number; dia: number; crt: number; etco2: number };
+  /** ETCO2 (mmHg) during good CPR once capnography is attached (authoring value for the monitor). */
+  etco2Cpr: number;
+  /** Number of failed IV attempts before IV access would succeed (0 = first attempt works). */
+  ivFails?: number;
+  /** Where the defibrillator / drugs / airway equipment are (for the model). */
+  equipment: string;
+}
+
 export interface SimCase {
   id: string;
-  module: "bls";
+  module: "bls" | "als";
   number: number;
   title: string;
   teaser: string;
@@ -80,6 +141,10 @@ export interface SimCase {
   ending: string;
   facts: CaseFact[];
   aed: CaseAed | null;
+  /** Training monitor (ECG, SpO2, blood pressure, capillary refill). null = no monitor (e.g. dispatcher case). */
+  monitor: CaseMonitor | null;
+  /** ALS cases only. */
+  als?: CaseAls;
   checklist: ChecklistItem[];
   pitfalls: Pitfall[];
   teaching: TeachingPoint[];

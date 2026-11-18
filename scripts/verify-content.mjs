@@ -6,7 +6,8 @@
  *  - cites a guideline passage id that does not exist,
  *  - has a teaching quote that is not VERBATIM in its passage,
  *  - has duplicate checklist/pitfall/fact ids,
- *  - has a checklist without critical items or an AED without rhythms.
+ *  - has a checklist without critical items or an AED without rhythms,
+ *  - has a monitor ECG sequence that contradicts the AED rhythm sequence.
  *
  * Uses Node's built-in TypeScript type stripping (Node ≥ 22.18).
  */
@@ -17,14 +18,22 @@ import path from "node:path";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const guideline = JSON.parse(readFileSync(path.join(root, "src/data/guideline/bls-2025.json"), "utf8"));
 const { BLS_CASES } = await import(path.join(root, "src/data/cases/bls.ts"));
+const { ALS_CASES } = await import(path.join(root, "src/data/cases/als.ts"));
+const ALL = [...BLS_CASES, ...ALS_CASES];
+const { aedTrainingQuotes, AED_QUIZ } = await import(path.join(root, "src/data/aed-training.ts"));
 
-const norm = (s) => s.toLowerCase().replace(/min⁻¹/g, "min").replace(/[^a-z0-9]/g, "");
-const passages = new Map(guideline.passages.map((p) => [p.id, p]));
+const alsGuideline = JSON.parse(readFileSync(path.join(root, "src/data/guideline/als-2025.json"), "utf8"));
+const norm = (s) => s.toLowerCase().replace(/min⁻¹/g, "min").replace(/kg⁻¹/g, "kg").replace(/µg/g, "ug").replace(/[^a-z0-9]/g, "");
+const passages = new Map([...guideline.passages, ...alsGuideline.passages].map((p) => [p.id, p]));
+if (passages.size !== guideline.passages.length + alsGuideline.passages.length) {
+  console.error("✗ duplicate passage ids across the BLS and ALS knowledge bases");
+  process.exit(1);
+}
 const errors = [];
 let quotes = 0;
 let refs = 0;
 
-for (const c of BLS_CASES) {
+for (const c of ALL) {
   const where = (s) => `[${c.id}] ${s}`;
   const seen = new Set();
   for (const group of [c.checklist, c.pitfalls, c.facts]) {
@@ -47,6 +56,31 @@ for (const c of BLS_CASES) {
   }
   if (!c.checklist.some((x) => x.critical)) errors.push(where("no critical checklist item"));
   if (c.aed && !c.aed.rhythms.length) errors.push(where("AED without rhythm sequence"));
+  if (c.module === "als") {
+    if (!c.als) errors.push(where("ALS case without als config"));
+    else {
+      if (c.als.rosc && c.als.rosc.atCheck > c.als.rhythms.length) errors.push(where("rosc.atCheck beyond the rhythm sequence"));
+      const autoItems = new Set(["rhythm_decisions", "adrenaline_early_nonshockable", "adrenaline_after_third_shock", "amiodarone_after_third_shock", "amiodarone_after_fifth_shock", "vector_change", "vascular_access", "io_after_failed_iv", "capnography", "fluids_given"]);
+      const autoPits = new Set(["shock_nonshockable", "missed_shock", "adrenaline_too_early", "amiodarone_too_early", "amiodarone_nonshockable", "adrenaline_same_cycle"]);
+      for (const x of c.checklist) if (x.auto && !autoItems.has(x.auto)) errors.push(where(`${x.id}: unknown auto rule ${x.auto}`));
+      for (const x of c.pitfalls) if (x.auto && !autoPits.has(x.auto)) errors.push(where(`${x.id}: unknown auto pitfall ${x.auto}`));
+      if (!c.checklist.some((x) => !x.auto)) errors.push(where("ALS case without AI-assessed items"));
+    }
+  }
+  if (c.monitor) {
+    const shockable = new Set(["vf", "pvt"]);
+    if (!c.aed) errors.push(where("monitor without AED (the ECG is derived from the AED analyses)"));
+    else {
+      if (c.monitor.ecg.length !== c.aed.rhythms.length) errors.push(where("monitor.ecg and aed.rhythms differ in length"));
+      c.monitor.ecg.forEach((r, i) => {
+        const want = c.aed.rhythms[i];
+        if (want && (shockable.has(r) ? "shockable" : "non-shockable") !== want)
+          errors.push(where(`monitor.ecg[${i}] = ${r} contradicts aed.rhythms[${i}] = ${want}`));
+      });
+    }
+    if (c.monitor.rosc && !c.facts.some((f) => f.id === c.monitor.rosc.afterFact))
+      errors.push(where(`monitor.rosc.afterFact "${c.monitor.rosc.afterFact}" is not a fact id`));
+  }
   for (const t of c.teaching) {
     quotes++;
     const p = passages.get(t.ref);
@@ -58,8 +92,38 @@ for (const c of BLS_CASES) {
   }
 }
 
+// Learning progress: every checklist item belongs to a competency
+const { COMPETENCY_OF } = await import(path.join(root, "src/lib/learning.ts"));
+for (const c of ALL)
+  for (const x of c.checklist) if (!COMPETENCY_OF[x.id]) errors.push(`[${c.id}] ${x.id}: no competency in src/lib/learning.ts`);
+
+// AED training module: every quote verbatim, every quiz answer index valid
+let aedQuotes = 0;
+for (const t of aedTrainingQuotes()) {
+  aedQuotes++;
+  const p = passages.get(t.ref);
+  if (!p) errors.push(`[aed-training] unknown passage "${t.ref}"`);
+  else if (!norm(p.text).includes(norm(t.quote))) errors.push(`[aed-training] quote not verbatim in ${t.ref}: "${t.quote.slice(0, 80)}…"`);
+}
+for (const q of AED_QUIZ) {
+  if (!(q.correct >= 0 && q.correct < q.options.length)) errors.push(`[aed-training] quiz ${q.id}: invalid answer index`);
+}
+
+// Knowledge sections (BLS + ALS): every quote verbatim, quiz answers valid
+const { KNOWLEDGE, knowledgeQuotes } = await import(path.join(root, "src/data/knowledge.ts"));
+let knowledgeCount = 0;
+for (const t of knowledgeQuotes()) {
+  knowledgeCount++;
+  const p = passages.get(t.ref);
+  if (!p) errors.push(`[knowledge] unknown passage "${t.ref}"`);
+  else if (norm(t.quote).length < 20) errors.push(`[knowledge] quote too short in ${t.ref}`);
+  else if (!norm(p.text).includes(norm(t.quote))) errors.push(`[knowledge] quote not verbatim in ${t.ref}: "${t.quote.slice(0, 80)}…"`);
+}
+for (const m of Object.values(KNOWLEDGE))
+  for (const q of m.quiz) if (!(q.correct >= 0 && q.correct < q.options.length)) errors.push(`[knowledge] ${m.id} quiz ${q.id}: invalid answer index`);
+
 if (errors.length) {
   console.error(`✗ ${errors.length} content error(s):\n` + errors.map((e) => "  - " + e).join("\n"));
   process.exit(1);
 }
-console.log(`✓ ${BLS_CASES.length} cases · ${refs} guideline references · ${quotes} verbatim teaching quotes – all verified against ${guideline.passages.length} passages.`);
+console.log(`✓ ${BLS_CASES.length} BLS + ${ALS_CASES.length} ALS cases · ${refs} guideline references · ${quotes} verbatim teaching quotes · ${aedQuotes} AED-module quotes · ${knowledgeCount} knowledge quotes – all verified against ${passages.size} passages (BLS + ALS).`);

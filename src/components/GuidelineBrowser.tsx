@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, ExternalLink } from "lucide-react";
-import { BLS_GUIDELINE, type Passage } from "@/lib/guideline";
+import { GUIDELINES, type GuidelineId, type Passage } from "@/lib/guideline";
 
 const KIND_LABEL: Record<Passage["kind"], string> = {
   recommendation: "Recommendation",
@@ -13,13 +13,20 @@ const KIND_LABEL: Record<Passage["kind"], string> = {
 
 export default function GuidelineBrowser() {
   const [q, setQ] = useState("");
+  const [gid, setGid] = useState<GuidelineId>("bls");
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("g");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (fromUrl === "als" || fromUrl === "bls") setGid(fromUrl);
+  }, []);
+  const G = GUIDELINES[gid];
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const list = BLS_GUIDELINE.passages.filter((p) => !needle || (p.title + " " + p.text).toLowerCase().includes(needle));
+    const list = GUIDELINES[gid].passages.filter((p) => !needle || (p.title + " " + p.text).toLowerCase().includes(needle));
     const map = new Map<string, Passage[]>();
     for (const p of list) map.set(p.section, [...(map.get(p.section) ?? []), p]);
     return Array.from(map.entries());
-  }, [q]);
+  }, [q, gid]);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:py-10">
@@ -27,13 +34,20 @@ export default function GuidelineBrowser() {
       <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">Guideline passages</h1>
       <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
         This is the complete knowledge base the AI may use – nothing else. Text sections are extracted verbatim from the PDF
-        (reference numbers removed); figures and Table 1 are transcribed. Source: {BLS_GUIDELINE.source.authors}{" "}
-        <em>{BLS_GUIDELINE.source.title}</em>. {BLS_GUIDELINE.source.journal}.{" "}
-        <a href={`https://doi.org/${BLS_GUIDELINE.source.doi}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-blue-600 hover:underline dark:text-blue-400">
-          doi:{BLS_GUIDELINE.source.doi} <ExternalLink className="h-3 w-3" />
+        (reference numbers removed); figures are transcribed by hand. Source: {G.source.authors}{" "}
+        <em>{G.source.title}</em>. {G.source.journal}.{" "}
+        <a href={`https://doi.org/${G.source.doi}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-blue-600 hover:underline dark:text-blue-400">
+          doi:{G.source.doi} <ExternalLink className="h-3 w-3" />
         </a>
       </p>
-      <div className="sticky top-14 z-10 mt-5 bg-background/90 py-2 backdrop-blur lg:top-0">
+      <div className="mt-4 inline-flex rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800">
+        {(["bls", "als"] as GuidelineId[]).map((id) => (
+          <button key={id} onClick={() => setGid(id)} className={`rounded-lg px-4 py-1.5 text-sm font-semibold ${gid === id ? "bg-blue-500 text-white" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"}`}>
+            {GUIDELINES[id].source.short} <span className="font-normal opacity-70">({GUIDELINES[id].passages.length})</span>
+          </button>
+        ))}
+      </div>
+      <div className="sticky top-14 z-10 mt-3 bg-background/90 py-2 backdrop-blur lg:top-0">
         <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
           <Search className="h-4 w-4 text-slate-400" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search, e.g. “agonal”, “mattress”, “bra”" className="w-full bg-transparent text-base outline-none dark:text-white" />

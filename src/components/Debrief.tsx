@@ -7,6 +7,57 @@ import type { SimState } from "@/lib/sim/state";
 import { formatClock } from "@/lib/sim/state";
 import { computeResult, PASS_SCORE } from "@/lib/sim/scoring";
 import { CitationChip, GuidelineQuote } from "@/components/GuidelineCitation";
+import { keyTimes, type TimelineKind } from "@/lib/sim/monitor";
+
+const DOT: Record<TimelineKind, string> = {
+  cpr_start: "bg-emerald-500",
+  cpr_pause: "bg-amber-500",
+  pads: "bg-sky-500",
+  analysis: "bg-violet-500",
+  shock: "bg-resus",
+  rosc: "bg-emerald-600",
+  drug: "bg-knowledge",
+  access: "bg-slate-400",
+  airway: "bg-cyan-500",
+};
+
+function Timeline({ state }: { state: SimState }) {
+  const ev = state.timeline ?? [];
+  const k = keyTimes(ev);
+  const t = (x: number | null) => (x === null ? "–" : `≈ ${formatClock(x)}`);
+  return (
+    <div className="card">
+      <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-white">Monitor timeline</h3>
+      <p className="mb-3 text-[11px] text-slate-400">Scenario times are approximate (end of the turn in which it happened).</p>
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          ["First compressions", t(k.firstCompressions)],
+          ["Pads on", t(k.padsOn)],
+          ["First shock", t(k.firstShock)],
+          [k.rosc !== null ? "ROSC" : "Shocks", k.rosc !== null ? t(k.rosc) : String(k.shocks)],
+        ].map(([label, val]) => (
+          <div key={label} className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900/40">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400">{label}</p>
+            <p className="font-mono text-sm font-semibold text-slate-800 dark:text-slate-100">{val}</p>
+          </div>
+        ))}
+      </div>
+      {ev.length === 0 ? (
+        <p className="text-xs text-slate-500 dark:text-slate-400">No monitor events recorded.</p>
+      ) : (
+        <ol className="relative ml-1 space-y-2 border-l border-slate-200 pl-4 text-xs dark:border-slate-700">
+          {ev.map((e, i) => (
+            <li key={i} className="relative">
+              <span className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ${DOT[e.kind]}`} />
+              <span className="mr-2 font-mono text-slate-400">{formatClock(e.t)}</span>
+              <span className="text-slate-700 dark:text-slate-200">{e.label}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
 
 function ScoreRing({ score, passed }: { score: number; passed: boolean }) {
   const r = 44;
@@ -147,6 +198,8 @@ export default function Debrief({ pc, state, onRetry }: { pc: PublicCase; state:
           </div>
         </div>
       </div>
+
+      {(pc.monitor || pc.als) && <Timeline state={state} />}
 
       <div className="card">
         <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Key messages from the guideline</h3>

@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookOpenText, CheckCircle2, HeartPulse, Lock, ShieldCheck, Sparkles, Target, Trophy } from "lucide-react";
+import { ArrowRight, BookOpen, BookOpenText, CheckCircle2, HeartPulse, Lock, MessageCircleQuestion, ShieldCheck, Sparkles, Target, Trophy, Zap } from "lucide-react";
 import type { PublicCase } from "@/lib/cases/public";
 import { MODULES, APP_TAGLINE } from "@/lib/brand";
 import { bestResult, useAudience, useResults } from "@/lib/progress";
 import { AudiencePicker, CaseCard } from "@/components/CaseLibrary";
-import { BLS_GUIDELINE } from "@/lib/guideline";
+import { ALL_PASSAGES } from "@/lib/guideline";
+import { askTeamLeader } from "@/components/TeamLeader";
+import { LearningLevelCard } from "@/components/LearningProgress";
 
 export default function Dashboard({ cases }: { cases: PublicCase[] }) {
   const results = useResults();
@@ -35,7 +37,7 @@ export default function Dashboard({ cases }: { cases: PublicCase[] }) {
           <p className="mt-3 text-sm text-slate-300 sm:text-base">{APP_TAGLINE}. For nurses, physicians and EMS professionals.</p>
           <div className="mt-6 flex flex-wrap gap-3">
             {next && (
-              <Link href={`/bls/${next.id}`} className="btn-resus">
+              <Link href={`/${next.module}/${next.id}`} className="btn-resus">
                 {attempted ? "Continue" : "Start"} with “{next.title}” <ArrowRight className="h-4 w-4" />
               </Link>
             )}
@@ -62,10 +64,42 @@ export default function Dashboard({ cases }: { cases: PublicCase[] }) {
         </div>
       </section>
 
+      {/* Learning progress + knowledge */}
+      <section className="mt-4 grid gap-4 md:grid-cols-2">
+        <LearningLevelCard cases={cases} />
+        <button onClick={() => askTeamLeader()} className="card group flex items-center gap-4 !p-5 text-left">
+          <span className="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-knowledge to-indigo-800 text-white"><MessageCircleQuestion className="h-8 w-8" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Questions?</span>
+            <span className="mt-0.5 block text-lg font-bold text-slate-900 dark:text-white">Ask the Team Leader</span>
+            <span className="block text-xs text-slate-500 dark:text-slate-400">Answers only from the ERC 2025 BLS & ALS guidelines, with verified quotes</span>
+          </span>
+          <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-0.5" />
+        </button>
+      </section>
+
+      <section className="mt-4 grid gap-4 md:grid-cols-3">
+        {[
+          { href: "/learn/bls", icon: BookOpen, tone: "from-resus to-rose-800", kicker: "Knowledge · BLS", title: "Basic Life Support", text: "7 chapters in guideline order + quiz" },
+          { href: "/learn/als", icon: BookOpen, tone: "from-indigo-600 to-navy", kicker: "Knowledge · ALS", title: "Advanced Life Support", text: "10 chapters in guideline order + quiz" },
+          { href: "/aed", icon: Zap, tone: "from-emerald-600 to-emerald-800", kicker: "Knowledge · AED", title: "Using an AED", text: "Lessons, pad placement, drill and quiz" },
+        ].map(({ href, icon: Icon, tone, kicker, title, text }) => (
+          <Link key={href} href={href} className="card group flex items-center gap-4 !p-4">
+            <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${tone} text-white`}><Icon className="h-6 w-6" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">{kicker}</span>
+              <span className="block font-semibold text-slate-900 dark:text-white">{title}</span>
+              <span className="block text-xs text-slate-500 dark:text-slate-400">{text}</span>
+            </span>
+            <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        ))}
+      </section>
+
       {/* Modules */}
       <section className="mt-8">
         <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Modules</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-3">
           {MODULES.map((m) =>
             m.status === "live" && m.href ? (
               <Link key={m.id} href={m.href} className="card group !p-5 ring-1 ring-resus/20">
@@ -74,7 +108,7 @@ export default function Dashboard({ cases }: { cases: PublicCase[] }) {
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">live</span>
                 </div>
                 <p className="mt-3 font-semibold text-slate-900 dark:text-white">{m.name}</p>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{cases.length} cases · {m.guideline}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{cases.filter((c) => c.module === m.id).length} cases · {m.guideline}</p>
                 <p className="mt-3 flex items-center gap-1 text-xs font-semibold text-blue-600 group-hover:gap-2 dark:text-blue-400">Open <ArrowRight className="h-3.5 w-3.5" /></p>
               </Link>
             ) : (
@@ -92,22 +126,28 @@ export default function Dashboard({ cases }: { cases: PublicCase[] }) {
       </section>
 
       {/* Cases */}
-      <section className="mt-8">
-        <div className="mb-3 flex items-end justify-between">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">BLS cases {audience !== "all" && <span className="text-sm font-normal text-slate-400">· filtered for your profession</span>}</h2>
-          <Link href="/bls" className="text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400">All cases</Link>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {mine.map((c) => <CaseCard key={c.id} c={c} />)}
-        </div>
-      </section>
+      {(["bls", "als"] as const).map((mod) => {
+        const list = mine.filter((c) => c.module === mod);
+        if (!list.length) return null;
+        return (
+          <section key={mod} className="mt-8">
+            <div className="mb-3 flex items-end justify-between">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{mod.toUpperCase()} cases {audience !== "all" && <span className="text-sm font-normal text-slate-400">· filtered for your profession</span>}</h2>
+              <Link href={`/${mod}`} className="text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400">All {mod.toUpperCase()} cases</Link>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {list.map((c) => <CaseCard key={c.id} c={c} />)}
+            </div>
+          </section>
+        );
+      })}
 
       {/* Trust */}
       <section className="mt-8 grid gap-4 lg:grid-cols-3">
         {[
-          { icon: BookOpenText, title: "One source of truth", text: `Teaching content comes only from the ${BLS_GUIDELINE.source.short} – ${BLS_GUIDELINE.passages.length} page-referenced passages.` },
+          { icon: BookOpenText, title: "One source of truth", text: `Teaching content comes only from the ERC Guidelines 2025 Adult BLS and ALS – ${ALL_PASSAGES.length} page-referenced passages.` },
           { icon: ShieldCheck, title: "Verified, not trusted", text: "Every quote the AI uses is checked word-for-word against the guideline text. Unverifiable notes are withheld." },
-          { icon: Sparkles, title: "Deterministic where it matters", text: "AED rhythms, voice prompts and your score come from the authored case – never from the AI." },
+          { icon: Sparkles, title: "Deterministic where it matters", text: "Rhythms, ROSC, drug timing, monitor values and your score come from the case engine – never from the AI." },
         ].map(({ icon: Icon, title, text }) => (
           <div key={title} className="card !p-5">
             <Icon className="h-5 w-5 text-blue-500" />
@@ -117,7 +157,7 @@ export default function Dashboard({ cases }: { cases: PublicCase[] }) {
         ))}
       </section>
       {passed === cases.length && cases.length > 0 && (
-        <p className="mt-6 flex items-center justify-center gap-2 text-sm font-semibold text-emerald-600"><CheckCircle2 className="h-4 w-4" /> All BLS cases passed – well done.</p>
+        <p className="mt-6 flex items-center justify-center gap-2 text-sm font-semibold text-emerald-600"><CheckCircle2 className="h-4 w-4" /> All cases passed – well done.</p>
       )}
     </div>
   );
