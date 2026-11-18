@@ -86,7 +86,10 @@ export default function TeamLeader() {
         setNeedCode({ question, error: res.status === 503 ? data.error : ac ? "Access code not accepted." : "" });
         return;
       }
-      if (!res.ok || data.error) return settle({ status: "error", error: data.error ?? "Something went wrong." });
+      if (!res.ok || data.error) {
+        const base = data.error ?? data.errorMessage ?? "Something went wrong.";
+        return settle({ status: "error", error: `${base} (HTTP ${res.status}${data.detail ? ` – ${data.detail}` : ""})` });
+      }
       if (!data.answerable) return settle({ status: "unanswerable" });
       settle({ status: "answered", statements: data.statements, partial: data.partial });
     } catch {

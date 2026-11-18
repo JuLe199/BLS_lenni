@@ -162,7 +162,8 @@ export async function POST(req: NextRequest) {
     ans = await call();
   } catch (err) {
     console.error("ask: model error", err);
-    return NextResponse.json({ error: "The Team Leader is not reachable right now. Please try again." }, { status: 502 });
+    const detail = (err instanceof Error ? err.message : String(err)).replace(/key=[^&\s"]+/gi, "key=***").slice(0, 300);
+    return NextResponse.json({ error: "The Team Leader is not reachable right now. Please try again.", detail }, { status: 502 });
   }
   if (!ans.answerable || !ans.statements?.length) return NextResponse.json({ answerable: false, statements: [] });
 
